@@ -8,7 +8,13 @@ import { NotificationModule } from './notification/notification.module';
 import { UserModule } from './user/user.module';
 
 @Module({
-  imports: [AuthModule, ReportModule, LineModule, NotificationModule, UserModule],
+  imports: [
+    AuthModule,
+    ReportModule,
+    LineModule,
+    NotificationModule,
+    UserModule,
+  ],
   controllers: [AppController],
   providers: [AppService],
 })
