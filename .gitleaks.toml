@@ -1,14 +1,9 @@
-# Gitleaks configuration for TransitWatch Sofia
-# https://github.com/gitleaks/gitleaks
-
-title = "TransitWatch Sofia - Gitleaks Config"
 
 [extend]
 # Extend the default ruleset
 useDefault = true
 
 [allowlist]
-description = "Global allowlist"
 paths = [
   '''node_modules''',
   '''dist''',
