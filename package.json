@@ -12,6 +12,11 @@
     "build:api": "npm run build --workspace=apps/api",
     "build:web": "npm run build --workspace=apps/web",
     "build": "npm run build --workspaces",
-    "test": "npm run test --workspace=apps/api"
+    "check": "npm run lint --workspaces --if-present",
+    "test": "npm run test --workspace=apps/api",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "husky": "^9.1.7"
   }
 }
