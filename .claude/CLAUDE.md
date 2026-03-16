@@ -6,6 +6,34 @@
 
 **Team:** Zlaten Vek (Златен Век)
 
+## Brand & Design
+
+### Colors
+| Role | Hex | Usage |
+|---|---|---|
+| Primary | `#1A1A2E` | Headers, nav, primary buttons |
+| Accent | `#16A34A` | Active states, success, confirmations |
+| Background | `#F9FAFB` | Page background |
+| Surface | `#FFFFFF` | Cards, modals, panels |
+| Text Primary | `#111827` | Body text |
+| Text Secondary | `#6B7280` | Captions, labels, muted text |
+| Border | `#E5E7EB` | Dividers, card borders, input outlines |
+| Danger | `#DC2626` | Errors, destructive actions |
+| Warning | `#F59E0B` | Alerts, pending states |
+
+### Typography
+- **Font family:** `Inter` (primary), `system-ui, sans-serif` (fallback)
+- **Headings:** Semi-bold (600), tracking tight
+- **Body:** Regular (400), 16px base
+- **Small/captions:** 12–14px, text-secondary color
+
+### Design Principles
+- Clean, minimal UI — generous whitespace, no visual clutter
+- Flat design with subtle shadows (`shadow-sm`) on cards only
+- Rounded corners (`rounded-lg` / 8px) for interactive elements
+- High contrast text on light backgrounds for readability
+- Map-first layout — the map is always the hero element
+
 ## Tech Stack
 
 | Layer | Technology |
