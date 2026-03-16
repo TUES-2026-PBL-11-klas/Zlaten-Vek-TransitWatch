@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 
-export default function LoginPage() {
+export default function RegisterPage() {
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -14,7 +14,7 @@ export default function LoginPage() {
     setError('');
     setLoading(true);
 
-    const { error: authError } = await supabase.auth.signInWithPassword({
+    const { error: authError } = await supabase.auth.signUp({
       email,
       password,
     });
@@ -32,7 +32,7 @@ export default function LoginPage() {
   return (
     <div style={styles.container}>
       <form onSubmit={handleSubmit} style={styles.form}>
-        <h1 style={styles.title}>Login</h1>
+        <h1 style={styles.title}>Create Account</h1>
 
         {error && <div style={styles.error}>{error}</div>}
 
@@ -60,11 +60,11 @@ export default function LoginPage() {
         </label>
 
         <button type="submit" disabled={loading} style={styles.button}>
-          {loading ? 'Signing in...' : 'Sign in'}
+          {loading ? 'Creating account...' : 'Register'}
         </button>
 
         <p style={styles.link}>
-          Don't have an account? <Link to="/register">Register</Link>
+          Already have an account? <Link to="/login">Sign in</Link>
         </p>
       </form>
     </div>
@@ -118,7 +118,7 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: '16px',
     fontWeight: 600,
     color: '#FFFFFF',
-    backgroundColor: '#1A1A2E',
+    backgroundColor: '#16A34A',
     border: 'none',
     borderRadius: '8px',
     cursor: 'pointer',
