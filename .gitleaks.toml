@@ -1,0 +1,23 @@
+# Gitleaks configuration for TransitWatch Sofia
+# https://github.com/gitleaks/gitleaks
+
+title = "TransitWatch Sofia - Gitleaks Config"
+
+[extend]
+# Extend the default ruleset
+useDefault = true
+
+[allowlist]
+description = "Global allowlist"
+paths = [
+  '''node_modules''',
+  '''dist''',
+  '''build''',
+  '''.husky''',
+  '''package-lock.json''',
+]
+# False positives
+commits = [
+  # NestJS boilerplate README — fake CircleCI badge token (abc123def456)
+  "ff7dbc78ad266a716abce850cae6bc5317bac9b6",
+]
