@@ -25,6 +25,35 @@ Reports auto-expire based on category, and the community decides what's real thr
 | Facebook groups / Twitter | People share problems sometimes | No structure, no map, slow |
 | **TransitWatch** ✓ | **Real-time peer reports, map, voting, auto-expire** | **Solves all of the above** |
 
+## Local Development (Docker)
+
+Start the full stack with a single command:
+
+```bash
+# 1. Copy environment variables
+cp .env.example .env
+
+# 2. Start all services
+docker-compose up
+```
+
+This spins up:
+- **API** at http://localhost:3000 (NestJS)
+- **Frontend** at http://localhost:5173 (React + Vite with hot reload)
+- **Postgres** at localhost:5432 (data persists via Docker volume)
+
+Health check: http://localhost:3000/health
+
+To rebuild after dependency changes:
+```bash
+docker-compose up --build
+```
+
+To reset the database:
+```bash
+docker-compose down -v
+```
+
 ## Tech Stack
 
 | Layer | Tech |

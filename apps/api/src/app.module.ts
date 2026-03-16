@@ -7,10 +7,12 @@ import { ReportModule } from './report/report.module';
 import { LineModule } from './line/line.module';
 import { NotificationModule } from './notification/notification.module';
 import { UserModule } from './user/user.module';
+import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
+import { APP_GUARD } from '@nestjs/core';
 
 @Module({
   imports: [PrismaModule, AuthModule, ReportModule, LineModule, NotificationModule, UserModule],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [AppService, { provide: APP_GUARD, useClass: JwtAuthGuard }],
 })
 export class AppModule {}

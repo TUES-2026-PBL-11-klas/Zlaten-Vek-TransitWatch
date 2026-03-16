@@ -1,0 +1,13 @@
+node_modules
+dist
+build
+.git
+.github
+.husky
+.claude
+.env
+.env.*
+*.md
+coverage
+docs
+.DS_Store

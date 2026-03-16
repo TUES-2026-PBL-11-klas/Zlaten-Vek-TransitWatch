@@ -1,10 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { User } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
-import { IUserRepository } from '../interfaces/user-repository.interface';
 
 @Injectable()
-export class PrismaUserRepository implements IUserRepository {
+export class PrismaUserRepository {
   constructor(private readonly prisma: PrismaService) {}
 
   findById(id: string): Promise<User | null> {

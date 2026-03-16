@@ -33,10 +33,23 @@ export class PrismaReportRepository implements IReportRepository {
     return this.prisma.report.create({ data });
   }
 
-  markExpired(id: string): Promise<Report> {
-    return this.prisma.report.update({
+  findExpired(): Promise<Report[]> {
+    return this.prisma.report.findMany({
+      where: { status: 'active', expiresAt: { lt: new Date() } },
+    });
+  }
+
+  async markExpired(id: string): Promise<void> {
+    await this.prisma.report.update({
       where: { id },
       data: { status: 'expired' },
+    });
+  }
+
+  async softDelete(id: string): Promise<void> {
+    await this.prisma.report.update({
+      where: { id },
+      data: { status: 'hidden' },
     });
   }
 }

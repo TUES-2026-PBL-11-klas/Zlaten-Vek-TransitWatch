@@ -1,9 +1,13 @@
-import { User } from '@prisma/client';
-
-export interface IUserRepository {
-  findById(id: string): Promise<User | null>;
-  findByEmail(email: string): Promise<User | null>;
-  save(data: { email: string }): Promise<User>;
+export interface AppUser {
+  id: string;
+  email: string;
+  credibilityScore: number;
+  createdAt: Date;
 }
 
-export const USER_REPOSITORY = 'IUserRepository';
+export interface IUserRepository {
+  findById(id: string): Promise<AppUser | null>;
+  upsert(id: string, email: string): Promise<AppUser>;
+}
+
+export const USER_REPOSITORY = 'USER_REPOSITORY';
