@@ -24,14 +24,12 @@ export class SupabaseJwtStrategy extends PassportStrategy(
       throw new Error('SUPABASE_JWT_SECRET environment variable is not set');
     }
 
-    /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access */
     const opts: StrategyOptionsWithoutRequest = {
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
       secretOrKey: secret,
     };
-    /* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access */
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-call
+
     super(opts);
   }
 

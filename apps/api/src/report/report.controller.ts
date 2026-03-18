@@ -1,7 +1,22 @@
-import { Controller, Get, Post, Delete, Param, Body, UseGuards, Request, ForbiddenException, NotFoundException } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Delete,
+  Param,
+  Body,
+  UseGuards,
+  Request,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { ReportService } from './report.service';
 import { CreateReportDto } from './create-report.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+
+interface AuthenticatedRequest {
+  user: { userId: string };
+}
 
 @Controller('reports')
 export class ReportController {
@@ -9,7 +24,10 @@ export class ReportController {
 
   @Post()
   @UseGuards(JwtAuthGuard)
-  async createReport(@Request() req, @Body() dto: CreateReportDto) {
+  async createReport(
+    @Request() req: AuthenticatedRequest,
+    @Body() dto: CreateReportDto,
+  ) {
     return this.reportService.createReport(req.user.userId, dto);
   }
 
@@ -34,7 +52,10 @@ export class ReportController {
 
   @Delete(':id')
   @UseGuards(JwtAuthGuard)
-  async deleteReport(@Request() req, @Param('id') id: string) {
+  async deleteReport(
+    @Request() req: AuthenticatedRequest,
+    @Param('id') id: string,
+  ) {
     const report = await this.reportService.getReportById(id);
     if (!report) {
       throw new NotFoundException('Report not found');
