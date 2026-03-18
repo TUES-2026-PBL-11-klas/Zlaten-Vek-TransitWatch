@@ -24,7 +24,10 @@ export class ReportController {
 
   @Post()
   @UseGuards(JwtAuthGuard)
-  async createReport(@Request() req: AuthenticatedRequest, @Body() dto: CreateReportDto) {
+  async createReport(
+    @Request() req: AuthenticatedRequest,
+    @Body() dto: CreateReportDto,
+  ) {
     return this.reportService.createReport(req.user.userId, dto);
   }
 
@@ -49,7 +52,10 @@ export class ReportController {
 
   @Delete(':id')
   @UseGuards(JwtAuthGuard)
-  async deleteReport(@Request() req: AuthenticatedRequest, @Param('id') id: string) {
+  async deleteReport(
+    @Request() req: AuthenticatedRequest,
+    @Param('id') id: string,
+  ) {
     const report = await this.reportService.getReportById(id);
     if (!report) {
       throw new NotFoundException('Report not found');
