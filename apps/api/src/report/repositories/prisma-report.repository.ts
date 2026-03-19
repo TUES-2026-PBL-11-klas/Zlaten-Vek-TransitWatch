@@ -28,6 +28,7 @@ export class PrismaReportRepository implements IReportRepository {
     stopId: string;
     category: string;
     description?: string;
+    credibilityScore: number;
     expiresAt: Date;
   }): Promise<Report> {
     return this.prisma.report.create({ data });
@@ -46,10 +47,7 @@ export class PrismaReportRepository implements IReportRepository {
     });
   }
 
-  async softDelete(id: string): Promise<void> {
-    await this.prisma.report.update({
-      where: { id },
-      data: { status: 'hidden' },
-    });
+  async delete(id: string): Promise<void> {
+    await this.prisma.report.delete({ where: { id } });
   }
 }

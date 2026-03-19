@@ -7,24 +7,21 @@ datasource db {
 }
 
 model User {
-  id               String             @id @default(uuid())
-  email            String             @unique
-  credibilityScore Int                @default(0) @map("credibility_score")
-  createdAt        DateTime           @default(now()) @map("created_at")
+  id               String   @id @default(uuid())
+  email            String   @unique
+  credibilityScore Int      @default(0) @map("credibility_score")
+  createdAt        DateTime @default(now()) @map("created_at")
   reports          Report[]
   votes            Vote[]
-  notifications    Notification[]
-  followedLines    UserFollowedLine[]
 
   @@map("users")
 }
 
 model Line {
-  id         String             @id @default(uuid())
-  name       String
-  type       String             // bus | tram | metro | trolley
-  stops      Stop[]
-  followedBy UserFollowedLine[]
+  id    String @id @default(uuid())
+  name  String
+  type  String // bus | tram | metro | trolley
+  stops Stop[]
 
   @@map("lines")
 }
@@ -42,18 +39,18 @@ model Stop {
 }
 
 model Report {
-  id            String         @id @default(uuid())
-  userId        String         @map("user_id")
-  stopId        String         @map("stop_id")
-  category      String
-  description   String?
-  expiresAt     DateTime       @map("expires_at")
-  status        String         @default("active")
-  createdAt     DateTime       @default(now()) @map("created_at")
-  user          User           @relation(fields: [userId], references: [id])
-  stop          Stop           @relation(fields: [stopId], references: [id])
-  votes         Vote[]
-  notifications Notification[]
+  id               String   @id @default(uuid())
+  userId           String   @map("user_id")
+  stopId           String   @map("stop_id")
+  category         String
+  description      String?
+  credibilityScore Int      @default(5) @map("credibility_score")
+  expiresAt        DateTime @map("expires_at")
+  status           String   @default("active")
+  createdAt        DateTime @default(now()) @map("created_at")
+  user             User     @relation(fields: [userId], references: [id])
+  stop             Stop     @relation(fields: [stopId], references: [id])
+  votes            Vote[]
 
   @@map("reports")
 }
@@ -68,25 +65,4 @@ model Vote {
 
   @@unique([reportId, userId])
   @@map("votes")
-}
-
-model Notification {
-  id       String   @id @default(uuid())
-  userId   String   @map("user_id")
-  reportId String   @map("report_id")
-  sentAt   DateTime @map("sent_at")
-  user     User     @relation(fields: [userId], references: [id])
-  report   Report   @relation(fields: [reportId], references: [id])
-
-  @@map("notifications")
-}
-
-model UserFollowedLine {
-  userId String @map("user_id")
-  lineId String @map("line_id")
-  user   User   @relation(fields: [userId], references: [id])
-  line   Line   @relation(fields: [lineId], references: [id])
-
-  @@id([userId, lineId])
-  @@map("user_followed_lines")
 }

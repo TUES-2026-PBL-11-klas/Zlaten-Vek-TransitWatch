@@ -7,6 +7,7 @@ export interface ReportResponseDto {
   category: ReportCategory;
   status: ReportStatus;
   description: string;
+  credibilityScore: number;
   confirmations: number;
   disputes: number;
   expiresAt: string;

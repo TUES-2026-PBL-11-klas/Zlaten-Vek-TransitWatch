@@ -10,10 +10,11 @@ export interface IReportRepository {
     stopId: string;
     category: string;
     description?: string;
+    credibilityScore: number;
     expiresAt: Date;
   }): Promise<Report>;
   markExpired(id: string): Promise<void>;
-  softDelete(id: string): Promise<void>;
+  delete(id: string): Promise<void>;
 }
 
 export const REPORT_REPOSITORY = 'IReportRepository';

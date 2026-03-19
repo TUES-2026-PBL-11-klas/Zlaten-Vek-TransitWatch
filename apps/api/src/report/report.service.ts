@@ -20,6 +20,7 @@ export class ReportService {
       stopId: dto.stopId,
       category: dto.category,
       description: dto.description,
+      credibilityScore: 5,
       expiresAt,
     });
   }
@@ -37,7 +38,7 @@ export class ReportService {
   }
 
   async deleteReport(id: string): Promise<void> {
-    await this.reportRepository.softDelete(id);
+    await this.reportRepository.delete(id);
   }
 
   async expireReport(reportId: string): Promise<void> {
