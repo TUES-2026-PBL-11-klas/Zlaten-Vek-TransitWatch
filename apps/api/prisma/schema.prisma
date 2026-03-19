@@ -18,22 +18,22 @@ model User {
 }
 
 model Line {
-  id    String @id @default(uuid())
-  name  String
-  type  String // bus | tram | metro | trolley
-  stops Stop[]
+  id      String   @id @default(uuid())
+  name    String
+  type    String // bus | tram | metro | trolley
+  stops   Stop[]
+  reports Report[]
 
   @@map("lines")
 }
 
 model Stop {
-  id      String   @id @default(uuid())
-  lineId  String   @map("line_id")
-  name    String
-  lat     Float
-  lng     Float
-  line    Line     @relation(fields: [lineId], references: [id])
-  reports Report[]
+  id     String @id @default(uuid())
+  lineId String @map("line_id")
+  name   String
+  lat    Float
+  lng    Float
+  line   Line   @relation(fields: [lineId], references: [id])
 
   @@map("stops")
 }
@@ -41,7 +41,7 @@ model Stop {
 model Report {
   id               String   @id @default(uuid())
   userId           String   @map("user_id")
-  stopId           String   @map("stop_id")
+  lineId           String   @map("line_id")
   category         String
   description      String?
   credibilityScore Int      @default(5) @map("credibility_score")
@@ -49,7 +49,7 @@ model Report {
   status           String   @default("active")
   createdAt        DateTime @default(now()) @map("created_at")
   user             User     @relation(fields: [userId], references: [id])
-  stop             Stop     @relation(fields: [stopId], references: [id])
+  line             Line     @relation(fields: [lineId], references: [id])
   votes            Vote[]
 
   @@map("reports")

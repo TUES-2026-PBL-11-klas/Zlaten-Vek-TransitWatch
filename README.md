@@ -40,7 +40,6 @@ docker-compose up
 This spins up:
 - **API** at http://localhost:3000 (NestJS)
 - **Frontend** at http://localhost:5173 (React + Vite with hot reload)
-- **Postgres** at localhost:5432 (data persists via Docker volume)
 
 Health check: http://localhost:3000/health
 
