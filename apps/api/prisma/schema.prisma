@@ -18,24 +18,37 @@ model User {
 }
 
 model Line {
-  id      String   @id @default(uuid())
-  name    String
-  type    String // bus | tram | metro | trolley
-  stops   Stop[]
-  reports Report[]
+  id        String     @id @default(uuid())
+  name      String
+  type      String // bus | tram | metro | trolley
+  lineStops LineStop[]
+  reports   Report[]
 
   @@map("lines")
 }
 
 model Stop {
-  id     String @id @default(uuid())
-  lineId String @map("line_id")
-  name   String
-  lat    Float
-  lng    Float
-  line   Line   @relation(fields: [lineId], references: [id])
+  id        String     @id @default(uuid())
+  name      String
+  lat       Float
+  lng       Float
+  lineStops LineStop[]
 
   @@map("stops")
+}
+
+model LineStop {
+  id        String @id @default(uuid())
+  lineId    String @map("line_id")
+  stopId    String @map("stop_id")
+  stopOrder Int    @default(0) @map("stop_order")
+  line      Line   @relation(fields: [lineId], references: [id], onDelete: Cascade)
+  stop      Stop   @relation(fields: [stopId], references: [id], onDelete: Cascade)
+
+  @@unique([lineId, stopId])
+  @@index([lineId])
+  @@index([stopId])
+  @@map("line_stops")
 }
 
 model Report {
