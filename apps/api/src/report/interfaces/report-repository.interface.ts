@@ -2,12 +2,12 @@ import { Report } from '@prisma/client';
 
 export interface IReportRepository {
   findById(id: string): Promise<Report | null>;
-  findActiveByStop(stopId: string): Promise<Report[]>;
+  findActiveByLine(lineId: string): Promise<Report[]>;
   findActiveAll(): Promise<Report[]>;
   findExpired(): Promise<Report[]>;
   save(data: {
     userId: string;
-    stopId: string;
+    lineId: string;
     category: string;
     description?: string;
     credibilityScore: number;

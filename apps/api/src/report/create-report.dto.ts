@@ -9,7 +9,7 @@ import { ReportCategory } from '../../../../packages/shared/src/enums';
 
 export class CreateReportDto {
   @IsUUID()
-  stopId: string;
+  lineId: string;
 
   @IsEnum(ReportCategory)
   category: ReportCategory;

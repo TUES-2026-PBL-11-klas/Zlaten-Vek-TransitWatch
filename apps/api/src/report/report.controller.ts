@@ -36,9 +36,9 @@ export class ReportController {
     return this.reportService.getActiveReports();
   }
 
-  @Get('stop/:stopId')
-  async getReportsByStop(@Param('stopId') stopId: string) {
-    return this.reportService.getReportsByStop(stopId);
+  @Get('line/:lineId')
+  async getReportsByLine(@Param('lineId') lineId: string) {
+    return this.reportService.getReportsByLine(lineId);
   }
 
   @Get(':id')

@@ -28,7 +28,7 @@ services:
       - "5173:5173"
     environment:
       VITE_API_URL: http://localhost:3000
-      VITE_SUPABASE_URL: ${VITE_SUPABASE_URL}
+      VITE_SUPABASE_URL: ${SUPABASE_URL}
       VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY}
     volumes:
       - ./apps/web/src:/app/apps/web/src

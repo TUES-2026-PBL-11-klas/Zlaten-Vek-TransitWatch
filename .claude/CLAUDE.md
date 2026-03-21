@@ -90,12 +90,14 @@ User → Traefik Ingress → React App (Nginx pod, 3 replicas)
 ## Database Schema (Key Tables)
 ```
 users(id, email, credibility_score, created_at)
-reports(id, user_id FK, stop_id FK, category, description, status, expires_at, created_at)
 lines(id, name, type)
-stops(id, line_id FK, name, lat, lng)
+stops(id, name, lat, lng)
+line_stops(id, line_id FK, stop_id FK, stop_order)
+reports(id, user_id FK, line_id FK, category, description, credibility_score, status, expires_at, created_at)
+votes(id, report_id FK, user_id FK, type)
 ```
 
-**ORM:** Prisma with eager loading for `stop` and `line` (always needed when displaying a report).
+**ORM:** Prisma with eager loading for `line` and `user` (always needed when displaying a report).
 
 ## Development Setup
 
