@@ -11,9 +11,9 @@ export class PrismaReportRepository implements IReportRepository {
     return this.prisma.report.findUnique({ where: { id } });
   }
 
-  findActiveByStop(stopId: string): Promise<Report[]> {
+  findActiveByLine(lineId: string): Promise<Report[]> {
     return this.prisma.report.findMany({
-      where: { stopId, status: 'active', expiresAt: { gt: new Date() } },
+      where: { lineId, status: 'active', expiresAt: { gt: new Date() } },
     });
   }
 
@@ -25,9 +25,10 @@ export class PrismaReportRepository implements IReportRepository {
 
   save(data: {
     userId: string;
-    stopId: string;
+    lineId: string;
     category: string;
     description?: string;
+    credibilityScore: number;
     expiresAt: Date;
   }): Promise<Report> {
     return this.prisma.report.create({ data });
@@ -46,10 +47,7 @@ export class PrismaReportRepository implements IReportRepository {
     });
   }
 
-  async softDelete(id: string): Promise<void> {
-    await this.prisma.report.update({
-      where: { id },
-      data: { status: 'hidden' },
-    });
+  async delete(id: string): Promise<void> {
+    await this.prisma.report.delete({ where: { id } });
   }
 }

@@ -40,7 +40,6 @@ docker-compose up
 This spins up:
 - **API** at http://localhost:3000 (NestJS)
 - **Frontend** at http://localhost:5173 (React + Vite with hot reload)
-- **Postgres** at localhost:5432 (data persists via Docker volume)
 
 Health check: http://localhost:3000/health
 
@@ -62,7 +61,7 @@ docker-compose down -v
 | **Backend** | NestJS + TypeScript |
 | **Database** | Supabase (PostgreSQL) |
 | **Auth** | Supabase Email Auth |
-| **Infrastructure** | Docker, GitHub Actions CI/CD |
+| **Infrastructure** | Docker, k3s (Kubernetes), GitHub Actions CI/CD |
 
 ## System Architecture
 
@@ -71,10 +70,10 @@ The app follows a **layered architecture** with clear separation of concerns:
 ```
 User (Browser)
     ↓ HTTPS
-    ├→ Cloudflare CDN
-    ├→ React App (Frontend)
+    ├→ Traefik Ingress
+    ├→ React App (Nginx pod, 2 replicas)
          ↓ REST API
-    ├→ NestJS API (Backend)
+    ├→ NestJS API (3 replicas, HPA)
          ↓ Database / ORM
     └→ Supabase PostgreSQL
 ```
@@ -114,8 +113,8 @@ The core entities and their relationships:
 
 ### Credibility & Verification
 - **Credibility Score** — Users earn points from verified reports (shown first in feeds)
-- **Verification** — 3+ confirmations → marked as Verified
-- **Auto-hide** — 3+ disputes → automatically hidden & sent to moderation queue
+- **Verification** — 2+ confirmations → marked as Verified
+- **Auto-hide** — 2+ disputes → automatically hidden & sent to moderation queue
 - **No anonymous reports** — account required (reduces spam)
 
 ---

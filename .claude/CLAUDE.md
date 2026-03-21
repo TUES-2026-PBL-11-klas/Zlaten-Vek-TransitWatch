@@ -49,14 +49,14 @@
 ## Architecture
 
 ```
-User → Cloudflare CDN → React App (Vercel)
-                      → NestJS API (Docker Kubernetes)
-                        → Supabase
+User → Traefik Ingress → React App (Nginx pod, 3 replicas)
+                       → NestJS API (3 replicas, HPA)
+                         → Supabase (PostgreSQL)
 ```
 
 **Layered architecture:** React → REST API → Service Layer → Repository Layer → Supabase
 
-**NestJS Modules:** `AuthModule`, `ReportModule`, `LineModule`, `NotificationModule`, `UserModule`
+**NestJS Modules:** `AuthModule`, `ReportModule`, `LineModule`, `UserModule`
 
 ## Key Domain Concepts
 
@@ -70,37 +70,34 @@ User → Cloudflare CDN → React App (Vercel)
 | ℹ️ Other | Free seats, route change | 30 min |
 
 ### Report Lifecycle
-- Created → appears on map immediately, push notification to followers
-- 3+ confirmations → **Verified**
-- 3+ disputes → **Hidden** (auto-moderated)
+- Created → appears on map immediately
 - Auto-expires based on category timer
-- Disputed reports go to moderation queue
+- Owner can delete their own report
 
 ### User System
 - Registration via email (Supabase Auth) — **no anonymous reports**
-- **Credibility score** based on confirmed reports (shown first in feeds)
-- **Followed lines** → push/email notifications for new verified reports
-- Morning digest summary
+- **Credibility score** field exists (future: sort reports by credibility)
 
 ## Design Patterns (Required for School)
-- **Observer pattern:** New report → NotificationService notified automatically
-- **Repository pattern:** IReportRepository abstracts DB access from business logic
-- **Strategy pattern:** Different report types handled via enum + strategy (OCP)
+- **Strategy pattern:** Each report type has its own strategy class (`DelayReportStrategy`, `InspectorReportStrategy`, etc.) implementing `IReportStrategy` — defines `getExpiryMinutes()`, credibility weight, and auto-hide threshold. Adding a new type = new class only, no existing code changed.
+- **Repository pattern:** `IReportRepository` abstracts DB access from business logic — swap ORM/DB without touching service layer.
 
 ## SOLID Principles (Required for School)
-- **SRP:** ReportService only validates/creates reports, does NOT send notifications
+- **SRP:** ReportService only validates/creates reports
 - **OCP:** New report types added via enum + strategy, no existing code changed
 - **DIP:** ReportService depends on `IReportRepository` interface, not concrete implementation
 
 ## Database Schema (Key Tables)
 ```
-users(id, email, google_id, credibility_score, created_at)
-reports(id, user_id FK, stop_id FK, type, description, expires_at, created_at)
+users(id, email, credibility_score, created_at)
 lines(id, name, type)
-stops(id, line_id FK, name, lat, lng)
-votes(id, report_id FK, user_id FK, type: confirm|dispute)
-notifications(id, user_id FK, report_id FK, sent_at)
+stops(id, name, lat, lng)
+line_stops(id, line_id FK, stop_id FK, stop_order)
+reports(id, user_id FK, line_id FK, category, description, credibility_score, status, expires_at, created_at)
+votes(id, report_id FK, user_id FK, type)
 ```
+
+**ORM:** Prisma with eager loading for `line` and `user` (always needed when displaying a report).
 
 ## Development Setup
 
@@ -120,10 +117,11 @@ npm run test:e2e
 ```
 
 ## CI/CD
-- **Pre-commit hooks:** Husky + lint-staged (ESLint + Prettier + Gitleaks)
-- **PR pipeline:** lint → unit tests → integration tests → Docker build
-- **Merge to main:** build → push image → deploy to Railway/ECS
-- **Alerts:** GitHub Actions on failure, Prometheus alerting for API errors
+- **Pre-commit hooks:** Husky + lint-staged (ESLint + Gitleaks for secrets detection)
+- **PR pipeline:** lint → unit tests → integration tests → Docker build → push to GHCR
+- **Merge to main:** `kubectl apply -f k8s/` to k3s cluster
+- **Orchestrator:** k3s (local Kubernetes)
+- **Alerts:** Discord webhook on pipeline failure, Prometheus alerting for API errors (error rate > 5%)
 
 ## Skills Available
 - `/frontend-design` — use for all UI/component work to get polished, production-quality React components

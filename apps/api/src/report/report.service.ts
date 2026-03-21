@@ -17,9 +17,10 @@ export class ReportService {
 
     return this.reportRepository.save({
       userId,
-      stopId: dto.stopId,
+      lineId: dto.lineId,
       category: dto.category,
       description: dto.description,
+      credibilityScore: 5,
       expiresAt,
     });
   }
@@ -28,8 +29,8 @@ export class ReportService {
     return this.reportRepository.findActiveAll();
   }
 
-  async getReportsByStop(stopId: string): Promise<Report[]> {
-    return this.reportRepository.findActiveByStop(stopId);
+  async getReportsByLine(lineId: string): Promise<Report[]> {
+    return this.reportRepository.findActiveByLine(lineId);
   }
 
   async getReportById(id: string): Promise<Report | null> {
@@ -37,7 +38,7 @@ export class ReportService {
   }
 
   async deleteReport(id: string): Promise<void> {
-    await this.reportRepository.softDelete(id);
+    await this.reportRepository.delete(id);
   }
 
   async expireReport(reportId: string): Promise<void> {
