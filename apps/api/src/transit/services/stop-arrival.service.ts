@@ -1,0 +1,139 @@
+import { Inject, Injectable } from '@nestjs/common';
+import { GtfsStaticService } from './gtfs-static.service';
+import { GtfsRealtimeService } from './gtfs-realtime.service';
+import {
+  ITransitRepository,
+  TRANSIT_REPOSITORY,
+} from '../interfaces/transit-repository.interface';
+import {
+  ArrivalInfo,
+  getCurrentGtfsSeconds,
+  parseGtfsTimeToSeconds,
+  secondsToTimeString,
+} from '../interfaces/gtfs.types';
+
+const MAX_ARRIVALS = 10;
+const ARRIVAL_WINDOW_SECONDS = 2 * 3600; // Look ahead 2 hours
+
+@Injectable()
+export class StopArrivalService {
+  constructor(
+    private readonly gtfsStaticService: GtfsStaticService,
+    private readonly gtfsRealtimeService: GtfsRealtimeService,
+    @Inject(TRANSIT_REPOSITORY)
+    private readonly transitRepository: ITransitRepository,
+  ) {}
+
+  async getArrivals(stopId: string): Promise<ArrivalInfo[]> {
+    // 1. Look up stop to get its gtfsId
+    const stop = await this.transitRepository.findStopById(stopId);
+    if (!stop || !stop.gtfsId) return [];
+
+    // 2. Find all scheduled stop times at this stop
+    const stopToTrips = this.gtfsStaticService.getStopToTripsMap();
+    const entries = stopToTrips.get(stop.gtfsId);
+    if (!entries || entries.length === 0) return [];
+
+    const tripToRoute = this.gtfsStaticService.getTripToRouteMap();
+    const nowSeconds = getCurrentGtfsSeconds();
+    const windowEnd = nowSeconds + ARRIVAL_WINDOW_SECONDS;
+
+    // 3. Collect candidate arrivals within the time window
+    const candidates: Array<{
+      routeGtfsId: string;
+      scheduledSeconds: number;
+      delaySeconds: number;
+      tripId: string;
+    }> = [];
+
+    for (const entry of entries) {
+      const scheduledSeconds = parseGtfsTimeToSeconds(entry.arrivalTime);
+
+      // Only include arrivals within the lookahead window
+      if (scheduledSeconds < nowSeconds || scheduledSeconds > windowEnd)
+        continue;
+
+      const routeGtfsId = tripToRoute.get(entry.tripId);
+      if (!routeGtfsId) continue;
+
+      const delaySeconds = this.gtfsRealtimeService.getTripDelay(
+        entry.tripId,
+        entry.stopGtfsId,
+      );
+
+      const estimatedSeconds = scheduledSeconds + delaySeconds;
+
+      // Skip if already passed (accounting for delay)
+      if (estimatedSeconds < nowSeconds) continue;
+
+      candidates.push({
+        routeGtfsId,
+        scheduledSeconds,
+        delaySeconds,
+        tripId: entry.tripId,
+      });
+    }
+
+    // 4. Sort by estimated arrival time
+    candidates.sort(
+      (a, b) =>
+        a.scheduledSeconds +
+        a.delaySeconds -
+        (b.scheduledSeconds + b.delaySeconds),
+    );
+
+    // 5. Deduplicate: keep only the next arrival per route
+    //    (avoids showing 20 entries for the same bus line)
+    const seenRoutes = new Set<string>();
+    const unique = candidates.filter((c) => {
+      if (seenRoutes.has(c.routeGtfsId)) return false;
+      seenRoutes.add(c.routeGtfsId);
+      return true;
+    });
+
+    // 6. Take top N and enrich with line info
+    const top = unique.slice(0, MAX_ARRIVALS);
+
+    // Batch-resolve unique route IDs
+    const routeGtfsIds = [...new Set(top.map((c) => c.routeGtfsId))];
+    const lineMap = new Map<
+      string,
+      { name: string; type: string; color: string | null }
+    >();
+    for (const gtfsId of routeGtfsIds) {
+      const line = await this.transitRepository.findLineByGtfsId(gtfsId);
+      if (line) {
+        lineMap.set(gtfsId, {
+          name: line.name,
+          type: line.type,
+          color: line.color,
+        });
+      }
+    }
+
+    // 7. Build response
+    return top
+      .map((c) => {
+        const line = lineMap.get(c.routeGtfsId);
+        if (!line) return null;
+
+        const estimatedSeconds = c.scheduledSeconds + c.delaySeconds;
+        const minutesUntil = Math.max(
+          0,
+          Math.round((estimatedSeconds - nowSeconds) / 60),
+        );
+
+        return {
+          lineName: line.name,
+          lineType: line.type,
+          lineColor: line.color,
+          scheduledTime: secondsToTimeString(c.scheduledSeconds),
+          estimatedTime: secondsToTimeString(estimatedSeconds),
+          delayMinutes: Math.round(c.delaySeconds / 60),
+          minutesUntil,
+          tripId: c.tripId,
+        };
+      })
+      .filter((a): a is ArrivalInfo => a !== null);
+  }
+}

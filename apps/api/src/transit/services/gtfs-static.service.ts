@@ -1,0 +1,476 @@
+import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Cron } from '@nestjs/schedule';
+import AdmZip from 'adm-zip';
+import { parseGtfsCsv } from '../utils/gtfs-parser';
+import { simplifyPolyline } from '../utils/polyline-simplifier';
+import {
+  GtfsStop,
+  GtfsRoute,
+  GtfsTrip,
+  GtfsStopTime,
+  GtfsShape,
+  GtfsTranslation,
+  gtfsRouteTypeToString,
+  isValidSofiaCoord,
+  StopTimeEntry,
+} from '../interfaces/gtfs.types';
+import {
+  ITransitRepository,
+  TRANSIT_REPOSITORY,
+} from '../interfaces/transit-repository.interface';
+
+const GTFS_STATIC_URL =
+  process.env.GTFS_STATIC_URL || 'https://gtfs.sofiatraffic.bg/api/v1/static';
+
+const POLYLINE_EPSILON = 0.0001; // ~11 meters at Sofia's latitude
+
+@Injectable()
+export class GtfsStaticService implements OnModuleInit {
+  private readonly logger = new Logger(GtfsStaticService.name);
+
+  // In-memory lookup tables populated during import
+  private stopTimesMap = new Map<string, StopTimeEntry[]>();
+  private stopToTripsMap = new Map<string, StopTimeEntry[]>(); // reverse index: stopGtfsId → entries
+  private tripToRouteMap = new Map<string, string>();
+  private tripToShapeMap = new Map<string, string>();
+
+  constructor(
+    @Inject(TRANSIT_REPOSITORY)
+    private readonly transitRepository: ITransitRepository,
+  ) {}
+
+  async onModuleInit() {
+    const count = await this.transitRepository.countStopsWithGtfsId();
+    if (count === 0) {
+      this.logger.log(
+        'No GTFS stops found in database. Starting initial import...',
+      );
+      await this.importStaticData();
+    } else {
+      this.logger.log(
+        `Found ${count} GTFS stops in database. Skipping initial import.`,
+      );
+      // Still load stop_times into memory for arrival calculations
+      await this.loadStopTimesFromGtfs();
+    }
+  }
+
+  @Cron('0 3 * * *') // Daily at 3 AM
+  async scheduledImport() {
+    this.logger.log('Starting scheduled GTFS static data import...');
+    await this.importStaticData();
+  }
+
+  async importStaticData(): Promise<{
+    stops: number;
+    lines: number;
+    shapes: number;
+  }> {
+    this.logger.log(`Downloading GTFS static feed from ${GTFS_STATIC_URL}...`);
+
+    let zipBuffer: Buffer;
+    try {
+      const response = await fetch(GTFS_STATIC_URL);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      zipBuffer = Buffer.from(await response.arrayBuffer());
+    } catch (error) {
+      this.logger.error(
+        `Failed to download GTFS feed: ${(error as Error).message}`,
+      );
+      throw error;
+    }
+
+    this.logger.log(
+      `Downloaded ${(zipBuffer.length / 1024 / 1024).toFixed(1)} MB. Extracting...`,
+    );
+    const zip = new AdmZip(zipBuffer);
+    const entries = zip.getEntries();
+
+    const files = new Map<string, string>();
+    for (const entry of entries) {
+      files.set(entry.entryName, entry.getData().toString('utf-8'));
+    }
+
+    // Parse translations first (for Bulgarian names)
+    const translations = this.parseTranslations(files.get('translations.txt'));
+
+    // 1. Import stops
+    const stopsImported = await this.importStops(
+      files.get('stops.txt'),
+      translations,
+    );
+
+    // 2. Import routes (lines)
+    const linesImported = await this.importRoutes(
+      files.get('routes.txt'),
+      translations,
+    );
+
+    // 3. Parse trips (in-memory mapping)
+    this.parseTrips(files.get('trips.txt'));
+
+    // 4. Parse stop_times and populate LineStops
+    await this.importStopTimes(files.get('stop_times.txt'));
+
+    // 5. Import shapes
+    const shapesImported = await this.importShapes(files.get('shapes.txt'));
+
+    this.logger.log(
+      `GTFS import complete: ${stopsImported} stops, ${linesImported} lines, ${shapesImported} shapes`,
+    );
+
+    return {
+      stops: stopsImported,
+      lines: linesImported,
+      shapes: shapesImported,
+    };
+  }
+
+  getStopTimesMap(): Map<string, StopTimeEntry[]> {
+    return this.stopTimesMap;
+  }
+
+  getTripToRouteMap(): Map<string, string> {
+    return this.tripToRouteMap;
+  }
+
+  getStopToTripsMap(): Map<string, StopTimeEntry[]> {
+    return this.stopToTripsMap;
+  }
+
+  private buildReverseIndex(): void {
+    this.stopToTripsMap.clear();
+    for (const [, entries] of this.stopTimesMap) {
+      for (const entry of entries) {
+        if (!this.stopToTripsMap.has(entry.stopGtfsId)) {
+          this.stopToTripsMap.set(entry.stopGtfsId, []);
+        }
+        this.stopToTripsMap.get(entry.stopGtfsId)!.push(entry);
+      }
+    }
+    this.logger.log(
+      `Built reverse index for ${this.stopToTripsMap.size} stops`,
+    );
+  }
+
+  // --- Private import methods ---
+
+  private parseTranslations(
+    content: string | undefined,
+  ): Map<string, Map<string, string>> {
+    // Map<"table_name:record_id:field_name", translation>
+    const translationMap = new Map<string, Map<string, string>>();
+
+    if (!content) return translationMap;
+
+    const rows = parseGtfsCsv<GtfsTranslation>(content);
+    for (const row of rows) {
+      if (row.language !== 'bg') continue;
+      const key = `${row.table_name}:${row.record_id}`;
+      if (!translationMap.has(key)) {
+        translationMap.set(key, new Map());
+      }
+      translationMap.get(key)!.set(row.field_name, row.translation);
+    }
+
+    return translationMap;
+  }
+
+  private async importStops(
+    content: string | undefined,
+    translations: Map<string, Map<string, string>>,
+  ): Promise<number> {
+    if (!content) {
+      this.logger.warn('stops.txt not found in GTFS feed');
+      return 0;
+    }
+
+    const rows = parseGtfsCsv<GtfsStop>(content);
+    let imported = 0;
+
+    for (const row of rows) {
+      const lat = parseFloat(row.stop_lat);
+      const lng = parseFloat(row.stop_lon);
+
+      if (!isValidSofiaCoord(lat, lng)) continue;
+
+      // Prefer Bulgarian translation
+      const bgTranslation = translations.get(`stops:${row.stop_id}`);
+      const name = bgTranslation?.get('stop_name') || row.stop_name;
+
+      await this.transitRepository.upsertStop({
+        gtfsId: row.stop_id,
+        name,
+        lat,
+        lng,
+      });
+      imported++;
+    }
+
+    this.logger.log(
+      `Imported ${imported} stops (filtered from ${rows.length})`,
+    );
+    return imported;
+  }
+
+  private async importRoutes(
+    content: string | undefined,
+    translations: Map<string, Map<string, string>>,
+  ): Promise<number> {
+    if (!content) {
+      this.logger.warn('routes.txt not found in GTFS feed');
+      return 0;
+    }
+
+    const rows = parseGtfsCsv<GtfsRoute>(content);
+    let imported = 0;
+
+    for (const row of rows) {
+      const bgTranslation = translations.get(`routes:${row.route_id}`);
+      const name =
+        bgTranslation?.get('route_short_name') || row.route_short_name;
+      const type = gtfsRouteTypeToString(row.route_type);
+
+      await this.transitRepository.upsertLine({
+        gtfsId: row.route_id,
+        name,
+        type,
+        color: row.route_color || undefined,
+      });
+      imported++;
+    }
+
+    this.logger.log(`Imported ${imported} lines`);
+    return imported;
+  }
+
+  private parseTrips(content: string | undefined): void {
+    if (!content) {
+      this.logger.warn('trips.txt not found in GTFS feed');
+      return;
+    }
+
+    const rows = parseGtfsCsv<GtfsTrip>(content);
+    this.tripToRouteMap.clear();
+    this.tripToShapeMap.clear();
+
+    for (const row of rows) {
+      this.tripToRouteMap.set(row.trip_id, row.route_id);
+      if (row.shape_id) {
+        this.tripToShapeMap.set(row.trip_id, row.shape_id);
+      }
+    }
+
+    this.logger.log(`Parsed ${rows.length} trips into memory`);
+  }
+
+  private async importStopTimes(content: string | undefined): Promise<void> {
+    if (!content) {
+      this.logger.warn('stop_times.txt not found in GTFS feed');
+      return;
+    }
+
+    const rows = parseGtfsCsv<GtfsStopTime>(content);
+    this.stopTimesMap.clear();
+
+    // Build in-memory stop_times map
+    for (const row of rows) {
+      const entry: StopTimeEntry = {
+        tripId: row.trip_id,
+        stopGtfsId: row.stop_id,
+        arrivalTime: row.arrival_time,
+        departureTime: row.departure_time,
+        stopSequence: parseInt(row.stop_sequence, 10),
+      };
+
+      if (!this.stopTimesMap.has(row.trip_id)) {
+        this.stopTimesMap.set(row.trip_id, []);
+      }
+      this.stopTimesMap.get(row.trip_id)!.push(entry);
+    }
+
+    // Sort each trip's stop times by sequence
+    for (const [, entries] of this.stopTimesMap) {
+      entries.sort((a, b) => a.stopSequence - b.stopSequence);
+    }
+
+    this.logger.log(`Loaded ${rows.length} stop_times into memory`);
+
+    // Build reverse index for arrival lookups
+    this.buildReverseIndex();
+
+    // Populate LineStop junction table from stop_times
+    await this.populateLineStops();
+  }
+
+  private async populateLineStops(): Promise<void> {
+    // Collect unique (route_id, stop_id, order) tuples
+    const lineStopSet = new Map<
+      string,
+      { routeGtfsId: string; stopGtfsId: string; stopOrder: number }
+    >();
+
+    for (const [tripId, entries] of this.stopTimesMap) {
+      const routeId = this.tripToRouteMap.get(tripId);
+      if (!routeId) continue;
+
+      for (const entry of entries) {
+        const key = `${routeId}:${entry.stopGtfsId}:${entry.stopSequence}`;
+        if (!lineStopSet.has(key)) {
+          lineStopSet.set(key, {
+            routeGtfsId: routeId,
+            stopGtfsId: entry.stopGtfsId,
+            stopOrder: entry.stopSequence,
+          });
+        }
+      }
+    }
+
+    let imported = 0;
+    for (const data of lineStopSet.values()) {
+      const line = await this.transitRepository.findLineByGtfsId(
+        data.routeGtfsId,
+      );
+      const stop = await this.transitRepository.findStopByGtfsId(
+        data.stopGtfsId,
+      );
+
+      if (!line || !stop) continue;
+
+      await this.transitRepository.upsertLineStop({
+        lineId: line.id,
+        stopId: stop.id,
+        stopOrder: data.stopOrder,
+      });
+      imported++;
+    }
+
+    this.logger.log(`Populated ${imported} line-stop relationships`);
+  }
+
+  private async importShapes(content: string | undefined): Promise<number> {
+    if (!content) {
+      this.logger.warn('shapes.txt not found in GTFS feed');
+      return 0;
+    }
+
+    const rows = parseGtfsCsv<GtfsShape>(content);
+
+    // Group by shape_id
+    const shapeGroups = new Map<
+      string,
+      Array<{ lat: number; lng: number; seq: number }>
+    >();
+    for (const row of rows) {
+      const shapeId = row.shape_id;
+      if (!shapeGroups.has(shapeId)) {
+        shapeGroups.set(shapeId, []);
+      }
+      shapeGroups.get(shapeId)!.push({
+        lat: parseFloat(row.shape_pt_lat),
+        lng: parseFloat(row.shape_pt_lon),
+        seq: parseInt(row.shape_pt_sequence, 10),
+      });
+    }
+
+    // Map shape_id to route_id (pick first trip for each route)
+    const routeToShapeId = new Map<string, string>();
+    for (const [tripId, shapeId] of this.tripToShapeMap) {
+      const routeId = this.tripToRouteMap.get(tripId);
+      if (routeId && !routeToShapeId.has(routeId)) {
+        routeToShapeId.set(routeId, shapeId);
+      }
+    }
+
+    let imported = 0;
+    for (const [routeGtfsId, shapeId] of routeToShapeId) {
+      const line = await this.transitRepository.findLineByGtfsId(routeGtfsId);
+      const points = shapeGroups.get(shapeId);
+
+      if (!line || !points) continue;
+
+      // Sort by sequence
+      points.sort((a, b) => a.seq - b.seq);
+
+      // Simplify polyline
+      const rawCoords: [number, number][] = points.map((p) => [p.lat, p.lng]);
+      const simplified = simplifyPolyline(rawCoords, POLYLINE_EPSILON);
+
+      await this.transitRepository.upsertShape({
+        lineId: line.id,
+        coordinates: simplified,
+      });
+      imported++;
+    }
+
+    this.logger.log(
+      `Imported ${imported} shapes (from ${shapeGroups.size} shape groups)`,
+    );
+    return imported;
+  }
+
+  /**
+   * Load stop_times from GTFS feed into memory without full DB import.
+   * Used on startup when DB already has stops/lines.
+   */
+  private async loadStopTimesFromGtfs(): Promise<void> {
+    this.logger.log('Loading stop_times into memory from GTFS feed...');
+
+    try {
+      const response = await fetch(GTFS_STATIC_URL);
+      if (!response.ok) {
+        this.logger.error(
+          `Failed to download GTFS for stop_times: HTTP ${response.status}`,
+        );
+        return;
+      }
+
+      const zipBuffer = Buffer.from(await response.arrayBuffer());
+      const zip = new AdmZip(zipBuffer);
+
+      const tripsEntry = zip.getEntry('trips.txt');
+      if (tripsEntry) {
+        this.parseTrips(tripsEntry.getData().toString('utf-8'));
+      }
+
+      const stopTimesEntry = zip.getEntry('stop_times.txt');
+      if (stopTimesEntry) {
+        const content = stopTimesEntry.getData().toString('utf-8');
+        const rows = parseGtfsCsv<GtfsStopTime>(content);
+        this.stopTimesMap.clear();
+
+        for (const row of rows) {
+          const entry: StopTimeEntry = {
+            tripId: row.trip_id,
+            stopGtfsId: row.stop_id,
+            arrivalTime: row.arrival_time,
+            departureTime: row.departure_time,
+            stopSequence: parseInt(row.stop_sequence, 10),
+          };
+
+          if (!this.stopTimesMap.has(row.trip_id)) {
+            this.stopTimesMap.set(row.trip_id, []);
+          }
+          this.stopTimesMap.get(row.trip_id)!.push(entry);
+        }
+
+        for (const [, entries] of this.stopTimesMap) {
+          entries.sort((a, b) => a.stopSequence - b.stopSequence);
+        }
+
+        // Build reverse index for arrival lookups
+        this.buildReverseIndex();
+
+        this.logger.log(
+          `Loaded ${rows.length} stop_times into memory (skip DB import)`,
+        );
+      }
+    } catch (error) {
+      this.logger.error(
+        `Failed to load stop_times: ${(error as Error).message}. Arrival data will be unavailable.`,
+      );
+    }
+  }
+}
