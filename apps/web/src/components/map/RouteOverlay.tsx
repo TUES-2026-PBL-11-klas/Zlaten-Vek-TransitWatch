@@ -17,10 +17,16 @@ export default function RouteOverlay({ timeline, shape }: RouteOverlayProps) {
     <>
       {/* Route polyline */}
       {shape && shape.coordinates.length > 0 && (
-        <Polyline
-          positions={shape.coordinates}
-          pathOptions={{ color: lineColor, weight: 4, opacity: 0.7 }}
-        />
+        <>
+          <Polyline
+            positions={shape.coordinates}
+            pathOptions={{ color: '#ffffff', weight: 8, opacity: 0.65 }}
+          />
+          <Polyline
+            positions={shape.coordinates}
+            pathOptions={{ color: lineColor, weight: 4, opacity: 0.85 }}
+          />
+        </>
       )}
 
       {/* Trip stop dots */}
@@ -28,9 +34,9 @@ export default function RouteOverlay({ timeline, shape }: RouteOverlayProps) {
         const isPassed = stop.status === 'passed';
         const isNext = stop.status === 'next';
 
-        const fillColor = isPassed ? '#9CA3AF' : isNext ? '#16A34A' : '#FFFFFF';
+        const fillColor = isPassed ? '#9CA3AF' : isNext ? '#16A34A' : '#F8FAFC';
         const strokeColor = isPassed ? '#6B7280' : isNext ? '#15803D' : lineColor;
-        const radius = isNext ? 8 : 6;
+        const radius = isNext ? 7 : 5;
 
         return (
           <CircleMarker
@@ -45,7 +51,7 @@ export default function RouteOverlay({ timeline, shape }: RouteOverlayProps) {
               className: isNext ? 'pulse-marker' : undefined,
             }}
           >
-            <Tooltip direction="top">
+            <Tooltip direction="top" className="map-tooltip">
               <span style={{ fontWeight: 500 }}>{stop.stopName}</span>
               <br />
               <span style={{ fontSize: 12, color: '#6B7280' }}>

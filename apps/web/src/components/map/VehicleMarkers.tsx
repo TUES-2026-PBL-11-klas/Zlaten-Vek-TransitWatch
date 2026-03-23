@@ -24,14 +24,14 @@ function buildVehicleIcon(line: TransitLine | undefined, bearing: number | null,
   return L.divIcon({
     className: 'vehicle-icon',
     html: `
-      <div style="position:relative;width:18px;height:18px;">
+      <div style="position:relative;width:16px;height:16px;">
         ${bearingHtml}
         <div class="vehicle-dot" style="background:${color};"></div>
         ${labelHtml}
       </div>
     `,
-    iconSize: [18, 18],
-    iconAnchor: [9, 9],
+    iconSize: [16, 16],
+    iconAnchor: [8, 8],
   });
 }
 
@@ -58,7 +58,7 @@ const VehicleMarker = memo(function VehicleMarker({
       }}
     >
       {line && (
-        <Tooltip direction="top" offset={[0, -10]}>
+        <Tooltip direction="top" offset={[0, -10]} className="map-tooltip">
           {line.name}
         </Tooltip>
       )}

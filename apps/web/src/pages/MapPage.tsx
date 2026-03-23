@@ -2,7 +2,7 @@ import 'leaflet/dist/leaflet.css';
 import './map.css';
 import L from 'leaflet';
 import { useState } from 'react';
-import { MapContainer, TileLayer, useMap, useMapEvents } from 'react-leaflet';
+import { MapContainer, TileLayer, useMapEvents } from 'react-leaflet';
 import StopMarkers from '../components/map/StopMarkers';
 import VehicleMarkers from '../components/map/VehicleMarkers';
 import RouteOverlay from '../components/map/RouteOverlay';
@@ -21,32 +21,6 @@ L.Icon.Default.mergeOptions({
 
 const SOFIA_CENTER: [number, number] = [42.6977, 23.3219];
 const DEFAULT_ZOOM = 13;
-
-function RecenterButton() {
-  const map = useMap();
-  return (
-    <button
-      onClick={() => map.setView(SOFIA_CENTER, DEFAULT_ZOOM)}
-      style={{
-        position: 'absolute',
-        bottom: 32,
-        right: 16,
-        zIndex: 1000,
-        background: '#1A1A2E',
-        color: '#fff',
-        border: 'none',
-        borderRadius: 8,
-        padding: '10px 16px',
-        fontSize: 14,
-        fontWeight: 600,
-        cursor: 'pointer',
-        boxShadow: '0 2px 8px rgba(0,0,0,0.25)',
-      }}
-    >
-      София
-    </button>
-  );
-}
 
 function MapClickHandler({ onMapClick }: { onMapClick: () => void }) {
   useMapEvents({
@@ -81,7 +55,6 @@ function MapLayers({
       <StopMarkers onStopSelect={onStopSelect} />
       <VehicleMarkers onVehicleSelect={onVehicleSelect} />
       <MapClickHandler onMapClick={onMapClick} />
-      <RecenterButton />
     </>
   );
 }
@@ -108,68 +81,39 @@ export default function MapPage() {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100%' }}>
+    <div className="map-page">
       {/* Navbar */}
-      <header
-        style={{
-          background: '#1A1A2E',
-          color: '#fff',
-          padding: '0 24px',
-          height: 56,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          flexShrink: 0,
-          zIndex: 1002,
-          position: 'relative',
-        }}
-      >
-        <span style={{ fontWeight: 600, fontSize: 18, letterSpacing: '-0.3px' }}>
+      <header className="map-header">
+        <span className="map-brand">
           TransitWatch Sofia
         </span>
-        <nav style={{ display: 'flex', gap: 8 }}>
-          <a
-            href="/login"
-            style={{
-              color: '#fff',
-              textDecoration: 'none',
-              padding: '6px 14px',
-              borderRadius: 8,
-              fontSize: 14,
-              fontWeight: 500,
-              opacity: 0.8,
-            }}
-          >
+        <nav className="map-nav">
+          <a href="/login" className="map-nav-link">
             Login
           </a>
-          <a
-            href="/register"
-            style={{
-              background: '#16A34A',
-              color: '#fff',
-              textDecoration: 'none',
-              padding: '6px 14px',
-              borderRadius: 8,
-              fontSize: 14,
-              fontWeight: 600,
-            }}
-          >
+          <a href="/register" className="map-nav-link map-nav-link--primary">
             Register
           </a>
         </nav>
       </header>
 
       {/* Map + panels */}
-      <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
+      <div className="map-stage">
         <MapContainer
           center={SOFIA_CENTER}
           zoom={DEFAULT_ZOOM}
+          className="leaflet-map"
           style={{ height: '100%', width: '100%' }}
           zoomControl={true}
         >
           <TileLayer
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            attribution='&copy; OpenStreetMap &copy; CARTO'
+            url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png"
+          />
+          <TileLayer
+            attribution='&copy; OpenStreetMap &copy; CARTO'
+            url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}{r}.png"
+            pane="overlayPane"
           />
           <MapLayers
             onStopSelect={handleStopSelect}
