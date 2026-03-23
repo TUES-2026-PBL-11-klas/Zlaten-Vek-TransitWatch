@@ -143,8 +143,7 @@ export class StopArrivalService {
     const stopTimes = this.gtfsStaticService.getStopTimesMap().get(tripId);
     if (!stopTimes || stopTimes.length === 0) return null;
 
-    const routeGtfsId =
-      this.gtfsStaticService.getTripToRouteMap().get(tripId);
+    const routeGtfsId = this.gtfsStaticService.getTripToRouteMap().get(tripId);
     if (!routeGtfsId) return null;
 
     const line = await this.transitRepository.findLineByGtfsId(routeGtfsId);
