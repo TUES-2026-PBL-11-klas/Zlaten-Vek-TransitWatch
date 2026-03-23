@@ -17,18 +17,18 @@ function StopCircle({
   onStopSelect: (id: string) => void;
 }) {
   const [hovered, setHovered] = useState(false);
-  const baseRadius = zoom >= 16 ? 7 : 5;
-  const radius = hovered ? baseRadius + 2 : baseRadius;
+  const baseRadius = zoom >= 16 ? 6 : 4;
+  const radius = hovered ? baseRadius + 1.5 : baseRadius;
 
   return (
     <CircleMarker
       center={[stop.lat, stop.lng]}
       radius={radius}
       pathOptions={{
-        fillColor: '#FFFFFF',
-        fillOpacity: 0.9,
-        color: hovered ? '#16A34A' : '#1A1A2E',
-        weight: 2,
+        fillColor: hovered ? '#DCFCE7' : '#F0FDF4',
+        fillOpacity: hovered ? 0.98 : 0.86,
+        color: hovered ? '#16A34A' : '#0F766E',
+        weight: hovered ? 2 : 1.5,
       }}
       eventHandlers={{
         mouseover: () => setHovered(true),
@@ -53,7 +53,7 @@ export default function StopMarkers({ onStopSelect }: StopMarkersProps) {
     [onStopSelect],
   );
 
-  if (zoom < 14) return null;
+  if (zoom < 15) return null;
 
   return (
     <>
