@@ -148,3 +148,25 @@ export function getCurrentGtfsSeconds(): number {
   }
   return total;
 }
+
+// --- Trip Timeline types ---
+
+export interface TripTimelineStop {
+  stopId: string;
+  stopName: string;
+  lat: number;
+  lng: number;
+  scheduledTime: string; // HH:mm
+  estimatedTime: string; // HH:mm
+  delayMinutes: number;
+  status: 'passed' | 'next' | 'upcoming';
+}
+
+export interface TripTimeline {
+  tripId: string;
+  lineId: string;
+  lineName: string;
+  lineType: string;
+  lineColor: string | null;
+  stops: TripTimelineStop[];
+}

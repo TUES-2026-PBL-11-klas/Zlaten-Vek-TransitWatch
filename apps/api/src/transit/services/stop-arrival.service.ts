@@ -7,6 +7,8 @@ import {
 } from '../interfaces/transit-repository.interface';
 import {
   ArrivalInfo,
+  TripTimeline,
+  TripTimelineStop,
   getCurrentGtfsSeconds,
   parseGtfsTimeToSeconds,
   secondsToTimeString,
@@ -135,5 +137,65 @@ export class StopArrivalService {
         };
       })
       .filter((a): a is ArrivalInfo => a !== null);
+  }
+
+  async getTripTimeline(tripId: string): Promise<TripTimeline | null> {
+    const stopTimes = this.gtfsStaticService.getStopTimesMap().get(tripId);
+    if (!stopTimes || stopTimes.length === 0) return null;
+
+    const routeGtfsId =
+      this.gtfsStaticService.getTripToRouteMap().get(tripId);
+    if (!routeGtfsId) return null;
+
+    const line = await this.transitRepository.findLineByGtfsId(routeGtfsId);
+    if (!line) return null;
+
+    const nowSeconds = getCurrentGtfsSeconds();
+    const stops: TripTimelineStop[] = [];
+    let foundNext = false;
+
+    for (const entry of stopTimes) {
+      const stop = await this.transitRepository.findStopByGtfsId(
+        entry.stopGtfsId,
+      );
+      if (!stop) continue;
+
+      const scheduledSeconds = parseGtfsTimeToSeconds(entry.arrivalTime);
+      const delaySeconds = this.gtfsRealtimeService.getTripDelay(
+        tripId,
+        entry.stopGtfsId,
+      );
+      const estimatedSeconds = scheduledSeconds + delaySeconds;
+
+      let status: 'passed' | 'next' | 'upcoming';
+      if (estimatedSeconds < nowSeconds) {
+        status = 'passed';
+      } else if (!foundNext) {
+        status = 'next';
+        foundNext = true;
+      } else {
+        status = 'upcoming';
+      }
+
+      stops.push({
+        stopId: stop.id,
+        stopName: stop.name,
+        lat: stop.lat,
+        lng: stop.lng,
+        scheduledTime: secondsToTimeString(scheduledSeconds),
+        estimatedTime: secondsToTimeString(estimatedSeconds),
+        delayMinutes: Math.round(delaySeconds / 60),
+        status,
+      });
+    }
+
+    return {
+      tripId,
+      lineId: line.id,
+      lineName: line.name,
+      lineType: line.type,
+      lineColor: line.color,
+      stops,
+    };
   }
 }

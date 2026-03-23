@@ -116,6 +116,17 @@ export class TransitController {
     };
   }
 
+  @Public()
+  @Get('trips/:tripId/timeline')
+  @Header('Cache-Control', 'no-cache')
+  async getTripTimeline(@Param('tripId') tripId: string) {
+    const timeline = await this.stopArrivalService.getTripTimeline(tripId);
+    if (!timeline) {
+      throw new NotFoundException(`Trip ${tripId} not found`);
+    }
+    return timeline;
+  }
+
   @Post('import')
   async triggerImport() {
     const result = await this.gtfsStaticService.importStaticData();
