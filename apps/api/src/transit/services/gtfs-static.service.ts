@@ -40,18 +40,24 @@ export class GtfsStaticService implements OnModuleInit {
   ) {}
 
   async onModuleInit() {
-    const count = await this.transitRepository.countStopsWithGtfsId();
-    if (count === 0) {
-      this.logger.log(
-        'No GTFS stops found in database. Starting initial import...',
+    try {
+      const count = await this.transitRepository.countStopsWithGtfsId();
+      if (count === 0) {
+        this.logger.log(
+          'No GTFS stops found in database. Starting initial import...',
+        );
+        await this.importStaticData();
+      } else {
+        this.logger.log(
+          `Found ${count} GTFS stops in database. Skipping initial import.`,
+        );
+        // Still load stop_times into memory for arrival calculations
+        await this.loadStopTimesFromGtfs();
+      }
+    } catch (error) {
+      this.logger.warn(
+        `Database unreachable on startup — skipping GTFS init: ${(error as Error).message}`,
       );
-      await this.importStaticData();
-    } else {
-      this.logger.log(
-        `Found ${count} GTFS stops in database. Skipping initial import.`,
-      );
-      // Still load stop_times into memory for arrival calculations
-      await this.loadStopTimesFromGtfs();
     }
   }
 
