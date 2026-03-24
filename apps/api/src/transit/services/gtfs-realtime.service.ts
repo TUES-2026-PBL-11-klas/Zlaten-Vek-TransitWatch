@@ -6,11 +6,11 @@ import * as GtfsRealtimeBindings from 'gtfs-realtime-bindings';
 
 const VEHICLE_POSITIONS_URL =
   process.env.GTFS_VEHICLE_POSITIONS_URL ||
-  'https://gtfs.sofiatraffic.bg/api/v1/realtime/vehicle-positions';
+  'https://gtfs.sofiatraffic.bg/api/v1/vehicle-positions';
 
 const TRIP_UPDATES_URL =
   process.env.GTFS_TRIP_UPDATES_URL ||
-  'https://gtfs.sofiatraffic.bg/api/v1/realtime/trip-updates';
+  'https://gtfs.sofiatraffic.bg/api/v1/trip-updates';
 
 const STALE_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes
 
