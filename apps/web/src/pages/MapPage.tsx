@@ -1,8 +1,11 @@
 import 'leaflet/dist/leaflet.css';
 import './map.css';
 import L from 'leaflet';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { MapContainer, TileLayer, useMapEvents } from 'react-leaflet';
+import type { User } from '@supabase/supabase-js';
+import { supabase } from '../lib/supabase';
 import StopMarkers from '../components/map/StopMarkers';
 import VehicleMarkers from '../components/map/VehicleMarkers';
 import RouteOverlay from '../components/map/RouteOverlay';
@@ -62,8 +65,23 @@ function MapLayers({
 export default function MapPage() {
   const [selectedStopId, setSelectedStopId] = useState<string | null>(null);
   const [selectedVehicle, setSelectedVehicle] = useState<VehiclePosition | null>(null);
+  const [user, setUser] = useState<User | null>(null);
+  const navigate = useNavigate();
 
   const tripTimeline = useTripTimeline(selectedVehicle?.tripId ?? null);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => setUser(data.session?.user ?? null));
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+    return () => listener.subscription.unsubscribe();
+  }, []);
+
+  async function handleSignOut() {
+    await supabase.auth.signOut();
+    navigate('/login');
+  }
 
   const handleStopSelect = (stopId: string) => {
     setSelectedVehicle(null);
@@ -88,12 +106,25 @@ export default function MapPage() {
           TransitWatch Sofia
         </span>
         <nav className="map-nav">
-          <a href="/login" className="map-nav-link">
-            Login
-          </a>
-          <a href="/register" className="map-nav-link map-nav-link--primary">
-            Register
-          </a>
+          {user ? (
+            <>
+              <Link to="/profile" className="map-nav-link">
+                Profile
+              </Link>
+              <button onClick={handleSignOut} className="map-nav-link map-nav-link--primary">
+                Sign out
+              </button>
+            </>
+          ) : (
+            <>
+              <Link to="/login" className="map-nav-link">
+                Login
+              </Link>
+              <Link to="/register" className="map-nav-link map-nav-link--primary">
+                Register
+              </Link>
+            </>
+          )}
         </nav>
       </header>
 
