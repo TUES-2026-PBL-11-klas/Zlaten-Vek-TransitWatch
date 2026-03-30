@@ -53,6 +53,81 @@ To reset the database:
 docker-compose down -v
 ```
 
+## Local Kubernetes (K3s via k3d)
+
+Use this to run the full stack on a local K3s cluster, matching the production environment.
+
+### Prerequisites
+
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) running
+- [k3d](https://k3d.io/) — `brew install k3d`
+- [kubectl](https://kubernetes.io/docs/tasks/tools/) — `brew install kubectl`
+
+### 1. Create the cluster
+
+```bash
+k3d cluster create transitwatch \
+  --port "80:80@loadbalancer" \
+  --port "443:443@loadbalancer"
+```
+
+Verify it's ready:
+
+```bash
+kubectl get nodes
+# NAME                        STATUS   ROLES                  AGE   VERSION
+# k3d-transitwatch-server-0   Ready    control-plane,master   ...   v1.x
+```
+
+### 2. Apply the namespace
+
+```bash
+kubectl apply -f k8s/namespace.yaml
+```
+
+### 3. Create secrets
+
+Never commit real values — create the secret directly on the cluster:
+
+```bash
+kubectl create secret generic transitwatch-secrets \
+  --from-literal=DATABASE_URL='postgresql://...' \
+  --from-literal=SUPABASE_URL='https://xxxx.supabase.co' \
+  --from-literal=SUPABASE_JWT_SECRET='...' \
+  -n transitwatch
+```
+
+Get the values from a teammate or the shared credentials store.
+
+### 4. Apply all manifests
+
+```bash
+kubectl apply -f k8s/
+```
+
+### 5. Verify everything is running
+
+```bash
+kubectl get pods,svc,hpa -n transitwatch
+# All pods should reach Running status within ~30 seconds
+```
+
+### Accessing the app
+
+| Service | URL |
+|---|---|
+| Frontend | http://localhost |
+| API | http://localhost/api |
+| Health check | http://localhost/api/health |
+
+### Teardown
+
+```bash
+k3d cluster delete transitwatch
+```
+
+---
+
 ## Tech Stack
 
 | Layer | Tech |
