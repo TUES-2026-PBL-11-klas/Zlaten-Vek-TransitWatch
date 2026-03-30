@@ -1,25 +1,21 @@
-# ---- Builder stage ----
 FROM node:22-alpine AS builder
 
 WORKDIR /app
 
-# Copy root workspace files
-COPY package.json ./
+COPY package.json package-lock.json ./
 COPY apps/api/package.json apps/api/
 COPY packages/shared/package.json packages/shared/
 
-# Install dependencies
-RUN npm install --workspace=apps/api --workspace=packages/shared --include-workspace-root
+RUN npm ci --workspace=apps/api --workspace=packages/shared --include-workspace-root
 
-# Copy source
 COPY apps/api/ apps/api/
 COPY packages/shared/ packages/shared/
 
-# Build shared package first, then API
-RUN npm run build --workspace=packages/shared && npm run build --workspace=apps/api
+RUN npm run build --workspace=packages/shared && \
+    npx prisma generate --schema=apps/api/prisma/schema.prisma && \
+    npm run build --workspace=apps/api
 
-# ---- Runner stage ----
-FROM node:22-alpine AS runner
+FROM node:22-alpine
 
 WORKDIR /app
 
