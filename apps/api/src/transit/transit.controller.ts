@@ -17,6 +17,10 @@ import {
 import { GtfsStaticService } from './services/gtfs-static.service';
 import { GtfsRealtimeService } from './services/gtfs-realtime.service';
 import { StopArrivalService } from './services/stop-arrival.service';
+import {
+  getCurrentGtfsSeconds,
+  parseGtfsTimeToSeconds,
+} from './interfaces/gtfs.types';
 
 @Controller('transit')
 export class TransitController {
@@ -127,8 +131,14 @@ export class TransitController {
   @Public()
   @Get('trips/:tripId/timeline')
   @Header('Cache-Control', 'no-cache')
-  async getTripTimeline(@Param('tripId') tripId: string) {
-    const timeline = await this.stopArrivalService.getTripTimeline(tripId);
+  async getTripTimeline(
+    @Param('tripId') tripId: string,
+    @Query('route') routeGtfsId?: string,
+  ) {
+    const timeline = await this.stopArrivalService.getTripTimeline(
+      tripId,
+      routeGtfsId,
+    );
     if (!timeline) {
       throw new NotFoundException(`Trip ${tripId} not found`);
     }
@@ -150,26 +160,31 @@ export class TransitController {
 
     let totalEntries = 0;
     let activeEntries = 0;
-    const sampleEntries: Array<{
+    let inWindowEntries = 0;
+    const activeSamples: Array<{
       stopId: string;
       tripId: string;
       arrival: string;
-      active: boolean;
       hasRoute: boolean;
     }> = [];
+
+    const nowSeconds = getCurrentGtfsSeconds();
+    const windowEnd = nowSeconds + 2 * 3600;
 
     for (const sid of siblings) {
       const entries = stopToTrips.get(sid) ?? [];
       for (const e of entries) {
         totalEntries++;
         const active = this.gtfsStaticService.isTripActiveToday(e.tripId);
-        if (active) activeEntries++;
-        if (sampleEntries.length < 5) {
-          sampleEntries.push({
+        if (!active) continue;
+        activeEntries++;
+        const secs = parseGtfsTimeToSeconds(e.arrivalTime);
+        if (secs >= nowSeconds && secs <= windowEnd) inWindowEntries++;
+        if (activeSamples.length < 5) {
+          activeSamples.push({
             stopId: e.stopGtfsId,
             tripId: e.tripId,
             arrival: e.arrivalTime,
-            active,
             hasRoute: tripToRoute.has(e.tripId),
           });
         }
@@ -185,7 +200,11 @@ export class TransitController {
       tripToRouteMapSize: tripToRoute.size,
       totalEntries,
       activeEntries,
-      sampleEntries,
+      inWindowEntries,
+      nowSeconds,
+      windowEnd,
+      nowTime: new Date().toLocaleTimeString(),
+      activeSamples,
     };
   }
 

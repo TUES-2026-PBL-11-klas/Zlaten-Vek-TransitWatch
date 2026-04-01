@@ -1,3 +1,5 @@
+export type TransitType = 'bus' | 'tram' | 'metro' | 'trolley';
+
 export interface TransitStop {
   id: string;
   gtfsId: string | null;
@@ -5,6 +7,7 @@ export interface TransitStop {
   lat: number;
   lng: number;
   lineCount: number;
+  types: TransitType[];
 }
 
 export interface TransitLine {

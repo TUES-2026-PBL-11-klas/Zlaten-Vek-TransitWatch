@@ -9,7 +9,7 @@ interface UseTripTimelineResult {
   error: string | null;
 }
 
-export function useTripTimeline(tripId: string | null): UseTripTimelineResult {
+export function useTripTimeline(tripId: string | null, routeGtfsId?: string | null): UseTripTimelineResult {
   const [timeline, setTimeline] = useState<TripTimeline | null>(null);
   const [shape, setShape] = useState<ShapeData | null>(null);
   const [loading, setLoading] = useState(false);
@@ -24,7 +24,7 @@ export function useTripTimeline(tripId: string | null): UseTripTimelineResult {
       setLoading(true);
       setError(null);
       try {
-        const tl = await transitApi.getTripTimeline(tripId);
+        const tl = await transitApi.getTripTimeline(tripId, routeGtfsId ?? undefined);
         if (cancelled) return;
         setTimeline(tl);
         try {
@@ -45,7 +45,7 @@ export function useTripTimeline(tripId: string | null): UseTripTimelineResult {
     return () => {
       cancelled = true;
     };
-  }, [tripId]);
+  }, [tripId, routeGtfsId]);
 
   return { timeline, shape, loading, error };
 }

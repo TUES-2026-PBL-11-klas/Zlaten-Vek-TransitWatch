@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { VehiclePosition, isValidSofiaCoord } from '../interfaces/gtfs.types';
+import { GtfsStaticService } from './gtfs-static.service';
 
 import * as GtfsRealtimeBindings from 'gtfs-realtime-bindings';
 
@@ -22,6 +23,8 @@ export class GtfsRealtimeService {
   private vehicles = new Map<string, VehiclePosition>();
   // tripId → (stopGtfsId → delay in seconds)
   private tripDelays = new Map<string, Map<string, number>>();
+
+  constructor(private readonly gtfsStaticService: GtfsStaticService) {}
 
   @Interval(10000)
   async pollVehiclePositions() {
@@ -51,10 +54,16 @@ export class GtfsRealtimeService {
         const ts = Number(v.timestamp || 0) * 1000;
         if (ts > 0 && now - ts > STALE_THRESHOLD_MS) continue;
 
+        const tripId = v.trip?.tripId || '';
+        const routeGtfsId =
+          v.trip?.routeId ||
+          this.gtfsStaticService.getTripToRouteMap().get(tripId) ||
+          '';
+
         this.vehicles.set(v.vehicle.id, {
           vehicleId: v.vehicle.id,
-          tripId: v.trip?.tripId || '',
-          routeGtfsId: v.trip?.routeId || '',
+          tripId,
+          routeGtfsId,
           lat,
           lng,
           bearing: v.position.bearing ?? null,

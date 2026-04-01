@@ -107,7 +107,7 @@ export default function MapPage() {
     setIsFollowing(following);
   }, []);
 
-  const tripTimeline = useTripTimeline(selectedVehicle?.tripId ?? null);
+  const tripTimeline = useTripTimeline(selectedVehicle?.tripId ?? null, selectedVehicle?.routeGtfsId ?? null);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setUser(data.session?.user ?? null));

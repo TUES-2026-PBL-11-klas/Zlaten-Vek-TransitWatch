@@ -2,45 +2,47 @@ import { useCallback, useState, memo } from 'react';
 import L from 'leaflet';
 import { Marker, Tooltip, useMap } from 'react-leaflet';
 import { useStops } from '../../hooks/useStops';
-import type { TransitStop } from '../../types/transit';
+import { TRANSIT_COLORS } from '../../types/transit';
+import type { TransitStop, TransitType } from '../../types/transit';
 
 interface StopMarkersProps {
   onStopSelect: (stop: TransitStop) => void;
   selectedStopId: string | null;
 }
 
-/* ── "H" stop sign icon (HTML divs, same approach as RampMe) ───────────── */
+/* Priority order for picking dominant type */
+const TYPE_PRIORITY: TransitType[] = ['metro', 'tram', 'trolley', 'bus'];
 
-function buildStopIcon(isSelected: boolean, isHovered: boolean): L.DivIcon {
-  let signBg: string;
-  let poleBg: string;
-  let glow: string;
-
-  if (isSelected) {
-    signBg = '#16A34A';
-    poleBg = '#16A34A';
-    glow = '0 0 0 3px rgba(22,163,74,0.35),0 2px 8px rgba(0,0,0,0.4)';
-  } else if (isHovered) {
-    signBg = '#15803D';
-    poleBg = '#6B7280';
-    glow = '0 1px 4px rgba(0,0,0,0.3)';
-  } else {
-    signBg = '#1A1A2E';
-    poleBg = '#4b5563';
-    glow = '0 1px 4px rgba(0,0,0,0.25)';
+function getDominantType(types: TransitType[]): TransitType {
+  if (!types.length) return 'bus';
+  for (const t of TYPE_PRIORITY) {
+    if (types.includes(t)) return t;
   }
+  return 'bus';
+}
+
+/* ── Stop icon — simple colored dot ───────────────────────────────────── */
+
+function buildStopIcon(
+  type: TransitType,
+  isSelected: boolean,
+  isHovered: boolean,
+): L.DivIcon {
+  const baseColor = TRANSIT_COLORS[type] ?? '#6B7280';
+  const size = isSelected ? 14 : isHovered ? 12 : 10;
+  const bg = isSelected ? '#16A34A' : baseColor;
+  const border = isSelected ? '2.5px solid #fff' : isHovered ? '2px solid #fff' : '2px solid #fff';
+  const shadow = isSelected
+    ? '0 0 0 3px rgba(22,163,74,0.35),0 2px 6px rgba(0,0,0,0.3)'
+    : isHovered
+      ? `0 0 0 2px ${baseColor}33,0 1px 4px rgba(0,0,0,0.25)`
+      : '0 1px 3px rgba(0,0,0,0.25)';
 
   return L.divIcon({
     className: '',
-    html: `<div style="display:flex;flex-direction:column;align-items:center;width:20px;height:29px">
-      <div style="background:${signBg};border-radius:3px;width:18px;height:13px;display:flex;align-items:center;justify-content:center;box-shadow:${glow};flex-shrink:0">
-        <span style="color:#fff;font-size:9px;font-weight:900;font-family:sans-serif;line-height:1">H</span>
-      </div>
-      <div style="width:2px;flex:1;background:${poleBg}"></div>
-      <div style="width:5px;height:5px;border-radius:50%;background:${poleBg};flex-shrink:0"></div>
-    </div>`,
-    iconSize: [20, 29],
-    iconAnchor: [10, 29],
+    html: `<div style="width:${size}px;height:${size}px;border-radius:50%;background:${bg};border:${border};box-shadow:${shadow};"></div>`,
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
   });
 }
 
@@ -56,7 +58,8 @@ const StopMarkerItem = memo(function StopMarkerItem({
   onStopSelect: (stop: TransitStop) => void;
 }) {
   const [hovered, setHovered] = useState(false);
-  const icon = buildStopIcon(isSelected, hovered);
+  const dominantType = getDominantType(stop.types ?? []);
+  const icon = buildStopIcon(dominantType, isSelected, hovered);
 
   return (
     <Marker
@@ -69,11 +72,9 @@ const StopMarkerItem = memo(function StopMarkerItem({
         click: () => onStopSelect(stop),
       }}
     >
-      {!isSelected && (
-        <Tooltip direction="top" offset={[0, -4]} className="stop-tooltip">
-          {stop.name}
-        </Tooltip>
-      )}
+      <Tooltip direction="top" offset={[0, -4]} className="stop-tooltip" opacity={isSelected ? 0 : 1}>
+        {stop.name}
+      </Tooltip>
     </Marker>
   );
 });
