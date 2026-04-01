@@ -1,6 +1,9 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { GtfsStaticService } from './gtfs-static.service';
-import { GtfsRealtimeService } from './gtfs-realtime.service';
+import {
+  GtfsRealtimeService,
+  TripStopPrediction,
+} from './gtfs-realtime.service';
 import {
   ITransitRepository,
   TRANSIT_REPOSITORY,
@@ -34,7 +37,7 @@ export class StopArrivalService {
     const stop = await this.transitRepository.findStopById(stopId);
     if (!stop || !stop.gtfsId) return [];
 
-    // Use in-memory stop_code index for sibling lookup (more reliable than DB)
+    // Use in-memory stop_code index for sibling lookup
     const siblingGtfsIds = this.gtfsStaticService.getSiblingStopIds(
       stop.gtfsId,
     );
@@ -48,85 +51,109 @@ export class StopArrivalService {
       if (stopEntries) entries.push(...stopEntries);
     }
 
-    if (entries.length === 0) {
-      this.logger.warn(
-        `No stop_time entries for siblings ${siblingGtfsIds.join(', ')}`,
-      );
-      return [];
-    }
-
     const tripToRoute = this.gtfsStaticService.getTripToRouteMap();
+    const routesMap = this.gtfsStaticService.getRoutesMap();
     const nowSeconds = getCurrentGtfsSeconds();
+    const nowUnixSec = Math.floor(Date.now() / 1000);
     const windowEnd = nowSeconds + ARRIVAL_WINDOW_SECONDS;
 
-    this.logger.log(
-      `Arrivals query: ${entries.length} entries, now=${nowSeconds}s, window=${nowSeconds}-${windowEnd}`,
-    );
-
     // 3. Collect candidate arrivals within the time window
-    let filteredByService = 0;
-    let filteredByWindow = 0;
-    let filteredByRoute = 0;
     const candidates: Array<{
       routeGtfsId: string;
       scheduledSeconds: number;
-      delaySeconds: number;
+      estimatedUnixSec: number | null; // absolute unix sec from RT, or null
       tripId: string;
+      realtime: boolean;
     }> = [];
 
     for (const entry of entries) {
-      // Only include trips that run today (service calendar filtering)
-      if (!this.gtfsStaticService.isTripActiveToday(entry.tripId)) {
-        filteredByService++;
-        continue;
-      }
+      if (!this.gtfsStaticService.isTripActiveToday(entry.tripId)) continue;
 
       const scheduledSeconds = parseGtfsTimeToSeconds(entry.arrivalTime);
-
-      // Only include arrivals within the lookahead window
-      if (scheduledSeconds < nowSeconds || scheduledSeconds > windowEnd) {
-        filteredByWindow++;
+      if (scheduledSeconds < nowSeconds || scheduledSeconds > windowEnd)
         continue;
-      }
 
       const routeGtfsId = tripToRoute.get(entry.tripId);
-      if (!routeGtfsId) {
-        filteredByRoute++;
-        continue;
-      }
+      if (!routeGtfsId) continue;
 
-      const delaySeconds = this.gtfsRealtimeService.getTripDelay(
+      // Check for absolute RT prediction
+      const prediction = this.gtfsRealtimeService.getTripPrediction(
         entry.tripId,
         entry.stopGtfsId,
       );
 
-      const estimatedSeconds = scheduledSeconds + delaySeconds;
+      let estimatedUnixSec: number | null = null;
+      let realtime = false;
 
-      // Skip if already passed (accounting for delay)
-      if (estimatedSeconds < nowSeconds) continue;
+      if (prediction && prediction.arrivalTime > 0) {
+        estimatedUnixSec = prediction.arrivalTime;
+        realtime = true;
+        // Skip if already departed
+        if (estimatedUnixSec < nowUnixSec) continue;
+      } else {
+        // Use scheduled time — skip if already passed
+        const estimatedSeconds = scheduledSeconds;
+        if (estimatedSeconds < nowSeconds) continue;
+      }
 
       candidates.push({
         routeGtfsId,
         scheduledSeconds,
-        delaySeconds,
+        estimatedUnixSec,
         tripId: entry.tripId,
+        realtime,
       });
     }
 
-    this.logger.log(
-      `Filter results: ${filteredByService} by service, ${filteredByWindow} by window, ${filteredByRoute} by route → ${candidates.length} candidates`,
-    );
+    // 3b. Inject realtime-only trips (from RT feed but not in static data)
+    const siblingSet = new Set(siblingGtfsIds);
+    const existingTripIds = new Set(candidates.map((c) => c.tripId));
+    const allPredictions = this.gtfsRealtimeService.getAllTripPredictions();
+
+    for (const [tripId, stopPredictions] of allPredictions) {
+      if (existingTripIds.has(tripId)) continue;
+
+      for (const [stopGtfsId, pred] of stopPredictions) {
+        if (!siblingSet.has(stopGtfsId)) continue;
+        if (pred.arrivalTime <= nowUnixSec) continue;
+
+        const routeGtfsId =
+          this.gtfsRealtimeService.getTripRouteId(tripId) ||
+          tripToRoute.get(tripId) ||
+          '';
+        if (!routeGtfsId || !routesMap.has(routeGtfsId)) continue;
+
+        candidates.push({
+          routeGtfsId,
+          scheduledSeconds: 0, // no schedule for RT-only trips
+          estimatedUnixSec: pred.arrivalTime,
+          tripId,
+          realtime: true,
+        });
+        break; // one prediction per trip is enough
+      }
+    }
 
     // 4. Sort by estimated arrival time
-    candidates.sort(
-      (a, b) =>
-        a.scheduledSeconds +
-        a.delaySeconds -
-        (b.scheduledSeconds + b.delaySeconds),
-    );
+    candidates.sort((a, b) => {
+      const aTime =
+        a.estimatedUnixSec ??
+        this.gtfsSecondsToApproxUnix(
+          a.scheduledSeconds,
+          nowUnixSec,
+          nowSeconds,
+        );
+      const bTime =
+        b.estimatedUnixSec ??
+        this.gtfsSecondsToApproxUnix(
+          b.scheduledSeconds,
+          nowUnixSec,
+          nowSeconds,
+        );
+      return aTime - bTime;
+    });
 
     // 5. Deduplicate: keep only the next arrival per route
-    //    (avoids showing 20 entries for the same bus line)
     const seenRoutes = new Set<string>();
     const unique = candidates.filter((c) => {
       if (seenRoutes.has(c.routeGtfsId)) return false;
@@ -134,45 +161,50 @@ export class StopArrivalService {
       return true;
     });
 
-    // 6. Take top N and enrich with line info
+    // 6. Take top N and enrich with line info from in-memory maps
     const top = unique.slice(0, MAX_ARRIVALS);
-
-    // Batch-resolve unique route IDs
-    const routeGtfsIds = [...new Set(top.map((c) => c.routeGtfsId))];
-    const lineMap = new Map<
-      string,
-      { name: string; type: string; color: string | null }
-    >();
-    for (const gtfsId of routeGtfsIds) {
-      const line = await this.transitRepository.findLineByGtfsId(gtfsId);
-      if (line) {
-        lineMap.set(gtfsId, {
-          name: line.name,
-          type: line.type,
-          color: line.color,
-        });
-      }
-    }
 
     // 7. Build response
     return top
       .map((c) => {
-        const line = lineMap.get(c.routeGtfsId);
-        if (!line) return null;
+        const routeMeta = routesMap.get(c.routeGtfsId);
+        if (!routeMeta) return null;
 
-        const estimatedSeconds = c.scheduledSeconds + c.delaySeconds;
-        const minutesUntil = Math.max(
-          0,
-          Math.round((estimatedSeconds - nowSeconds) / 60),
-        );
+        let minutesUntil: number;
+        let estimatedTime: string;
+        let delayMinutes = 0;
+
+        if (c.estimatedUnixSec) {
+          minutesUntil = Math.max(
+            0,
+            Math.round((c.estimatedUnixSec - nowUnixSec) / 60),
+          );
+          const d = new Date(c.estimatedUnixSec * 1000);
+          estimatedTime = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+          if (c.scheduledSeconds > 0) {
+            const scheduledMinutes = Math.floor(c.scheduledSeconds / 60);
+            const estDate = new Date(c.estimatedUnixSec * 1000);
+            const estMinutes = estDate.getHours() * 60 + estDate.getMinutes();
+            delayMinutes = estMinutes - (scheduledMinutes % (24 * 60));
+          }
+        } else {
+          minutesUntil = Math.max(
+            0,
+            Math.round((c.scheduledSeconds - nowSeconds) / 60),
+          );
+          estimatedTime = secondsToTimeString(c.scheduledSeconds);
+        }
 
         return {
-          lineName: line.name,
-          lineType: line.type,
-          lineColor: line.color,
-          scheduledTime: secondsToTimeString(c.scheduledSeconds),
-          estimatedTime: secondsToTimeString(estimatedSeconds),
-          delayMinutes: Math.round(c.delaySeconds / 60),
+          lineName: routeMeta.shortName,
+          lineType: routeMeta.type,
+          lineColor: routeMeta.color ?? null,
+          scheduledTime:
+            c.scheduledSeconds > 0
+              ? secondsToTimeString(c.scheduledSeconds)
+              : estimatedTime,
+          estimatedTime,
+          delayMinutes,
           minutesUntil,
           tripId: c.tripId,
         };
@@ -180,6 +212,173 @@ export class StopArrivalService {
       .filter((a): a is ArrivalInfo => a !== null);
   }
 
+  /**
+   * Get trip timeline by vehicle ID — the reliable approach.
+   * Finds the vehicle, gets its current trip, resolves stop sequence.
+   */
+  async getVehicleTripTimeline(
+    vehicleId: string,
+  ): Promise<TripTimeline | null> {
+    const vehicle = this.gtfsRealtimeService.getVehicleById(vehicleId);
+    if (!vehicle || !vehicle.tripId) return null;
+
+    const tripId = vehicle.tripId;
+    const stopTimesMap = this.gtfsStaticService.getStopTimesMap();
+    const tripToRouteMap = this.gtfsStaticService.getTripToRouteMap();
+    const routesMap = this.gtfsStaticService.getRoutesMap();
+
+    let stopTimes = stopTimesMap.get(tripId);
+    let resolvedTripId = tripId;
+
+    // If exact trip ID not found, try prefix matching
+    if (!stopTimes || stopTimes.length === 0) {
+      let prefix = tripId;
+      while (prefix.includes('-')) {
+        prefix = prefix.substring(0, prefix.lastIndexOf('-'));
+        for (const [key, val] of stopTimesMap) {
+          if (
+            key.startsWith(prefix + '-') &&
+            this.gtfsStaticService.isTripActiveToday(key)
+          ) {
+            stopTimes = val;
+            resolvedTripId = key;
+            break;
+          }
+        }
+        if (stopTimes && stopTimes.length > 0) break;
+      }
+    }
+
+    // Last resort: find any active trip on the same route
+    if (!stopTimes || stopTimes.length === 0) {
+      const routeGtfsId = vehicle.routeGtfsId;
+      if (routeGtfsId) {
+        for (const [key, val] of stopTimesMap) {
+          if (
+            tripToRouteMap.get(key) === routeGtfsId &&
+            this.gtfsStaticService.isTripActiveToday(key)
+          ) {
+            stopTimes = val;
+            resolvedTripId = key;
+            break;
+          }
+        }
+      }
+    }
+
+    if (!stopTimes || stopTimes.length === 0) return null;
+
+    const resolvedRouteGtfsId = tripToRouteMap.get(resolvedTripId);
+    if (!resolvedRouteGtfsId) return null;
+
+    const routeMeta = routesMap.get(resolvedRouteGtfsId);
+
+    // Also look up DB line for lineId (needed for shape fetching)
+    const line =
+      await this.transitRepository.findLineByGtfsId(resolvedRouteGtfsId);
+    if (!line) return null;
+
+    const nowUnixSec = Math.floor(Date.now() / 1000);
+    const nowGtfsSeconds = getCurrentGtfsSeconds();
+
+    // Get all predictions for this trip at once
+    const predictions: Map<string, TripStopPrediction> =
+      this.gtfsRealtimeService.getTripPredictions(tripId) ?? new Map<string, TripStopPrediction>();
+
+    const stops: TripTimelineStop[] = [];
+    let foundNext = false;
+
+    for (const entry of stopTimes) {
+      const stop = await this.transitRepository.findStopByGtfsId(
+        entry.stopGtfsId,
+      );
+      if (!stop) continue;
+
+      const scheduledSeconds = parseGtfsTimeToSeconds(entry.arrivalTime);
+      const prediction = predictions.get(entry.stopGtfsId);
+
+      let estimatedTime: string;
+      let delayMinutes = 0;
+      let minutesUntil: number;
+      let status: 'passed' | 'next' | 'upcoming';
+
+      if (prediction && prediction.arrivalTime > 0) {
+        // Use absolute RT prediction
+        const d = new Date(prediction.arrivalTime * 1000);
+        estimatedTime = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+
+        if (prediction.arrivalTime <= nowUnixSec) {
+          status = 'passed';
+          minutesUntil = 0;
+        } else if (!foundNext) {
+          status = 'next';
+          foundNext = true;
+          minutesUntil = Math.max(
+            0,
+            Math.round((prediction.arrivalTime - nowUnixSec) / 60),
+          );
+        } else {
+          status = 'upcoming';
+          minutesUntil = Math.max(
+            0,
+            Math.round((prediction.arrivalTime - nowUnixSec) / 60),
+          );
+        }
+
+        // Compute delay from scheduled
+        const scheduledNormMinutes =
+          Math.floor(scheduledSeconds / 60) % (24 * 60);
+        const predMinutes = d.getHours() * 60 + d.getMinutes();
+        delayMinutes = predMinutes - scheduledNormMinutes;
+      } else {
+        // Fall back to scheduled time
+        estimatedTime = secondsToTimeString(scheduledSeconds);
+
+        if (scheduledSeconds < nowGtfsSeconds) {
+          status = 'passed';
+          minutesUntil = 0;
+        } else if (!foundNext) {
+          status = 'next';
+          foundNext = true;
+          minutesUntil = Math.max(
+            0,
+            Math.round((scheduledSeconds - nowGtfsSeconds) / 60),
+          );
+        } else {
+          status = 'upcoming';
+          minutesUntil = Math.max(
+            0,
+            Math.round((scheduledSeconds - nowGtfsSeconds) / 60),
+          );
+        }
+      }
+
+      stops.push({
+        stopId: stop.id,
+        stopName: stop.name,
+        lat: stop.lat,
+        lng: stop.lng,
+        scheduledTime: secondsToTimeString(scheduledSeconds),
+        estimatedTime,
+        delayMinutes,
+        minutesUntil,
+        status,
+      });
+    }
+
+    return {
+      tripId,
+      lineId: line.id,
+      lineName: routeMeta?.shortName ?? line.name,
+      lineType: routeMeta?.type ?? line.type,
+      lineColor: routeMeta?.color ?? line.color,
+      stops,
+    };
+  }
+
+  /**
+   * Get trip timeline by trip ID (legacy endpoint, kept for backward compat).
+   */
   async getTripTimeline(
     tripId: string,
     routeGtfsId?: string,
@@ -190,9 +389,7 @@ export class StopArrivalService {
     let stopTimes = stopTimesMap.get(tripId);
     let resolvedTripId = tripId;
 
-    // Realtime trip IDs often differ from static GTFS trip IDs in multiple
-    // segments (variant, direction, sequence, serviceId). Try progressively
-    // shorter prefixes to find a matching static trip.
+    // Prefix matching fallback
     if (!stopTimes || stopTimes.length === 0) {
       let prefix = tripId;
       while (prefix.includes('-')) {
@@ -230,11 +427,17 @@ export class StopArrivalService {
     const resolvedRouteGtfsId = tripToRouteMap.get(resolvedTripId);
     if (!resolvedRouteGtfsId) return null;
 
+    const routesMap = this.gtfsStaticService.getRoutesMap();
+    const routeMeta = routesMap.get(resolvedRouteGtfsId);
     const line =
       await this.transitRepository.findLineByGtfsId(resolvedRouteGtfsId);
     if (!line) return null;
 
-    const nowSeconds = getCurrentGtfsSeconds();
+    const nowUnixSec = Math.floor(Date.now() / 1000);
+    const nowGtfsSeconds = getCurrentGtfsSeconds();
+    const predictions: Map<string, TripStopPrediction> =
+      this.gtfsRealtimeService.getTripPredictions(tripId) ?? new Map<string, TripStopPrediction>();
+
     const stops: TripTimelineStop[] = [];
     let foundNext = false;
 
@@ -245,20 +448,59 @@ export class StopArrivalService {
       if (!stop) continue;
 
       const scheduledSeconds = parseGtfsTimeToSeconds(entry.arrivalTime);
-      const delaySeconds = this.gtfsRealtimeService.getTripDelay(
-        tripId,
-        entry.stopGtfsId,
-      );
-      const estimatedSeconds = scheduledSeconds + delaySeconds;
+      const prediction = predictions.get(entry.stopGtfsId);
 
+      let estimatedTime: string;
+      let delayMinutes = 0;
+      let minutesUntil: number;
       let status: 'passed' | 'next' | 'upcoming';
-      if (estimatedSeconds < nowSeconds) {
-        status = 'passed';
-      } else if (!foundNext) {
-        status = 'next';
-        foundNext = true;
+
+      if (prediction && prediction.arrivalTime > 0) {
+        const d = new Date(prediction.arrivalTime * 1000);
+        estimatedTime = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+
+        if (prediction.arrivalTime <= nowUnixSec) {
+          status = 'passed';
+          minutesUntil = 0;
+        } else if (!foundNext) {
+          status = 'next';
+          foundNext = true;
+          minutesUntil = Math.max(
+            0,
+            Math.round((prediction.arrivalTime - nowUnixSec) / 60),
+          );
+        } else {
+          status = 'upcoming';
+          minutesUntil = Math.max(
+            0,
+            Math.round((prediction.arrivalTime - nowUnixSec) / 60),
+          );
+        }
+
+        const scheduledNormMinutes =
+          Math.floor(scheduledSeconds / 60) % (24 * 60);
+        const predMinutes = d.getHours() * 60 + d.getMinutes();
+        delayMinutes = predMinutes - scheduledNormMinutes;
       } else {
-        status = 'upcoming';
+        estimatedTime = secondsToTimeString(scheduledSeconds);
+
+        if (scheduledSeconds < nowGtfsSeconds) {
+          status = 'passed';
+          minutesUntil = 0;
+        } else if (!foundNext) {
+          status = 'next';
+          foundNext = true;
+          minutesUntil = Math.max(
+            0,
+            Math.round((scheduledSeconds - nowGtfsSeconds) / 60),
+          );
+        } else {
+          status = 'upcoming';
+          minutesUntil = Math.max(
+            0,
+            Math.round((scheduledSeconds - nowGtfsSeconds) / 60),
+          );
+        }
       }
 
       stops.push({
@@ -267,12 +509,9 @@ export class StopArrivalService {
         lat: stop.lat,
         lng: stop.lng,
         scheduledTime: secondsToTimeString(scheduledSeconds),
-        estimatedTime: secondsToTimeString(estimatedSeconds),
-        delayMinutes: Math.round(delaySeconds / 60),
-        minutesUntil: Math.max(
-          0,
-          Math.round((estimatedSeconds - nowSeconds) / 60),
-        ),
+        estimatedTime,
+        delayMinutes,
+        minutesUntil,
         status,
       });
     }
@@ -280,10 +519,19 @@ export class StopArrivalService {
     return {
       tripId,
       lineId: line.id,
-      lineName: line.name,
-      lineType: line.type,
-      lineColor: line.color,
+      lineName: routeMeta?.shortName ?? line.name,
+      lineType: routeMeta?.type ?? line.type,
+      lineColor: routeMeta?.color ?? line.color,
       stops,
     };
+  }
+
+  /** Convert GTFS seconds-since-midnight to approximate unix seconds */
+  private gtfsSecondsToApproxUnix(
+    gtfsSeconds: number,
+    nowUnixSec: number,
+    nowGtfsSeconds: number,
+  ): number {
+    return nowUnixSec + (gtfsSeconds - nowGtfsSeconds);
   }
 }

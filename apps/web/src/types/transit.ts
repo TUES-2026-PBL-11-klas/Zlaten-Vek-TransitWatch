@@ -28,6 +28,9 @@ export interface VehiclePosition {
   speed: number | null;
   timestamp: number;
   updatedAt: number;
+  routeShortName: string | null;
+  routeType: string | null;
+  headsign: string | null;
 }
 
 export interface VehiclesResponse {
@@ -81,8 +84,8 @@ export interface ShapeData {
 }
 
 export const TRANSIT_COLORS: Record<string, string> = {
-  bus: '#3B82F6',
-  tram: '#EF4444',
-  trolley: '#8B5CF6',
+  bus: '#DC2626',
+  tram: '#F59E0B',
+  trolley: '#3B82F6',
   metro: '#10B981',
 };

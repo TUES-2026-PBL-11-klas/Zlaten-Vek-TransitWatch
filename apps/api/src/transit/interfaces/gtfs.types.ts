@@ -20,6 +20,7 @@ export interface GtfsTrip {
   service_id: string;
   shape_id?: string;
   direction_id?: string;
+  trip_headsign?: string;
 }
 
 export interface GtfsCalendarDate {
@@ -67,8 +68,15 @@ export function gtfsRouteTypeToString(
       return 'bus';
     case '11':
       return 'trolley';
-    default:
+    default: {
+      const n = parseInt(routeType, 10);
+      if (n >= 700 && n < 800) return 'bus';
+      if (n >= 200 && n < 300) return 'bus';
+      if (n >= 800 && n < 900) return 'trolley';
+      if (n >= 900 && n < 1000) return 'tram';
+      if (n >= 400 && n < 500) return 'metro';
       return 'bus';
+    }
   }
 }
 
@@ -109,6 +117,9 @@ export interface VehiclePosition {
   speed: number | null;
   timestamp: number; // unix seconds when position was recorded
   updatedAt: number; // unix seconds when we received this update
+  routeShortName: string | null;
+  routeType: string | null;
+  headsign: string | null;
 }
 
 export interface ArrivalInfo {

@@ -49,4 +49,9 @@ export const transitApi = {
         params: routeGtfsId ? { route: routeGtfsId } : {},
       })
       .then((r) => r.data),
+
+  getVehicleTripTimeline: (vehicleId: string) =>
+    api
+      .get<TripTimeline>(`/transit/vehicles/${vehicleId}/trip`)
+      .then((r) => r.data),
 };

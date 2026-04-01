@@ -35,9 +35,28 @@ export class GtfsStaticService implements OnModuleInit {
   private tripToRouteMap = new Map<string, string>();
   private tripToShapeMap = new Map<string, string>();
   private tripServiceMap = new Map<string, string>(); // tripId → serviceId
-  private activeServiceIds = new Set<string>(); // today's active services
   private stopsByCode = new Map<string, string[]>(); // stop_code → [stopGtfsIds]
   private stopIdToCode = new Map<string, string>(); // stopGtfsId → stop_code
+
+  // In-memory route & trip metadata for fast enrichment (no DB queries)
+  private routesMap = new Map<
+    string,
+    { routeId: string; shortName: string; type: string; color?: string }
+  >();
+  private tripsMap = new Map<
+    string,
+    {
+      tripId: string;
+      routeId: string;
+      serviceId: string;
+      headsign: string;
+    }
+  >();
+
+  // Raw calendar dates for on-the-fly service ID computation
+  private calendarDatesRaw: GtfsCalendarDate[] = [];
+  private cachedActiveServices: Set<string> | null = null;
+  private cachedDateStr = '';
 
   constructor(
     @Inject(TRANSIT_REPOSITORY)
@@ -157,12 +176,51 @@ export class GtfsStaticService implements OnModuleInit {
     return this.stopToTripsMap;
   }
 
+  getRoutesMap(): Map<
+    string,
+    { routeId: string; shortName: string; type: string; color?: string }
+  > {
+    return this.routesMap;
+  }
+
+  getTripsMap(): Map<
+    string,
+    { tripId: string; routeId: string; serviceId: string; headsign: string }
+  > {
+    return this.tripsMap;
+  }
+
+  /** Recompute active service IDs when date changes (cached per day) */
+  private getActiveServiceIds(): Set<string> {
+    const now = new Date();
+    const todayStr =
+      String(now.getFullYear()) +
+      String(now.getMonth() + 1).padStart(2, '0') +
+      String(now.getDate()).padStart(2, '0');
+
+    if (todayStr === this.cachedDateStr && this.cachedActiveServices) {
+      return this.cachedActiveServices;
+    }
+
+    this.cachedActiveServices = new Set(
+      this.calendarDatesRaw
+        .filter((r) => r.date === todayStr && r.exception_type === '1')
+        .map((r) => r.service_id),
+    );
+    this.cachedDateStr = todayStr;
+    this.logger.log(
+      `Recomputed active services: ${this.cachedActiveServices.size} for ${todayStr}`,
+    );
+    return this.cachedActiveServices;
+  }
+
   /** Check if a trip's service is active today */
   isTripActiveToday(tripId: string): boolean {
-    if (this.activeServiceIds.size === 0) return true; // no calendar data = assume all active
+    const activeServices = this.getActiveServiceIds();
+    if (activeServices.size === 0) return true; // no calendar data = assume all active
     const serviceId = this.tripServiceMap.get(tripId);
     if (!serviceId) return false;
-    return this.activeServiceIds.has(serviceId);
+    return activeServices.has(serviceId);
   }
 
   /** Get all sibling stop IDs sharing the same stop_code (in-memory, no DB) */
@@ -188,6 +246,31 @@ export class GtfsStaticService implements OnModuleInit {
   }
 
   // --- Private import methods ---
+
+  /** Populate in-memory routesMap without DB writes (used on warm startup) */
+  private populateRoutesMap(
+    content: string,
+    translations: Map<string, Map<string, string>>,
+  ): void {
+    const rows = parseGtfsCsv<GtfsRoute>(content);
+    this.routesMap.clear();
+
+    for (const row of rows) {
+      const bgTranslation = translations.get(`routes:${row.route_id}`);
+      const name =
+        bgTranslation?.get('route_short_name') || row.route_short_name;
+      const type = gtfsRouteTypeToString(row.route_type);
+
+      this.routesMap.set(row.route_id, {
+        routeId: row.route_id,
+        shortName: name,
+        type,
+        color: row.route_color || undefined,
+      });
+    }
+
+    this.logger.log(`Populated ${this.routesMap.size} routes in memory`);
+  }
 
   private parseTranslations(
     content: string | undefined,
@@ -259,12 +342,20 @@ export class GtfsStaticService implements OnModuleInit {
 
     const rows = parseGtfsCsv<GtfsRoute>(content);
     let imported = 0;
+    this.routesMap.clear();
 
     for (const row of rows) {
       const bgTranslation = translations.get(`routes:${row.route_id}`);
       const name =
         bgTranslation?.get('route_short_name') || row.route_short_name;
       const type = gtfsRouteTypeToString(row.route_type);
+
+      this.routesMap.set(row.route_id, {
+        routeId: row.route_id,
+        shortName: name,
+        type,
+        color: row.route_color || undefined,
+      });
 
       await this.transitRepository.upsertLine({
         gtfsId: row.route_id,
@@ -275,7 +366,9 @@ export class GtfsStaticService implements OnModuleInit {
       imported++;
     }
 
-    this.logger.log(`Imported ${imported} lines`);
+    this.logger.log(
+      `Imported ${imported} lines (${this.routesMap.size} in memory)`,
+    );
     return imported;
   }
 
@@ -289,6 +382,7 @@ export class GtfsStaticService implements OnModuleInit {
     this.tripToRouteMap.clear();
     this.tripToShapeMap.clear();
     this.tripServiceMap.clear();
+    this.tripsMap.clear();
 
     for (const row of rows) {
       this.tripToRouteMap.set(row.trip_id, row.route_id);
@@ -298,37 +392,36 @@ export class GtfsStaticService implements OnModuleInit {
       if (row.shape_id) {
         this.tripToShapeMap.set(row.trip_id, row.shape_id);
       }
+      this.tripsMap.set(row.trip_id, {
+        tripId: row.trip_id,
+        routeId: row.route_id,
+        serviceId: row.service_id,
+        headsign: row.trip_headsign || '',
+      });
     }
 
     this.logger.log(`Parsed ${rows.length} trips into memory`);
   }
 
-  /** Parse calendar_dates.txt and build today's active service IDs */
+  /** Parse calendar_dates.txt and store raw data for on-the-fly service filtering */
   private parseCalendarDates(content: string | undefined): void {
     if (!content) {
       this.logger.warn(
         'calendar_dates.txt not found — all trips assumed active',
       );
-      this.activeServiceIds.clear();
+      this.calendarDatesRaw = [];
+      this.cachedActiveServices = null;
+      this.cachedDateStr = '';
       return;
     }
 
-    const rows = parseGtfsCsv<GtfsCalendarDate>(content);
-    const now = new Date();
-    const todayStr =
-      String(now.getFullYear()) +
-      String(now.getMonth() + 1).padStart(2, '0') +
-      String(now.getDate()).padStart(2, '0');
-
-    this.activeServiceIds.clear();
-    for (const row of rows) {
-      if (row.date === todayStr && row.exception_type === '1') {
-        this.activeServiceIds.add(row.service_id);
-      }
-    }
+    this.calendarDatesRaw = parseGtfsCsv<GtfsCalendarDate>(content);
+    // Invalidate cache so it recomputes on next access
+    this.cachedActiveServices = null;
+    this.cachedDateStr = '';
 
     this.logger.log(
-      `Calendar: ${this.activeServiceIds.size} active services for ${todayStr}`,
+      `Calendar: loaded ${this.calendarDatesRaw.length} calendar_dates entries`,
     );
   }
 
@@ -517,6 +610,31 @@ export class GtfsStaticService implements OnModuleInit {
 
       const zipBuffer = Buffer.from(await response.arrayBuffer());
       const zip = new AdmZip(zipBuffer);
+
+      // Parse translations for Bulgarian names
+      const translationsEntry = zip.getEntry('translations.txt');
+      const translations = this.parseTranslations(
+        translationsEntry?.getData().toString('utf-8'),
+      );
+
+      // Always populate in-memory routesMap from routes.txt
+      const routesEntry = zip.getEntry('routes.txt');
+      if (routesEntry) {
+        const routesContent = routesEntry.getData().toString('utf-8');
+        this.populateRoutesMap(routesContent, translations);
+
+        // Import routes to DB if the lines table is empty
+        const existingLines = await this.transitRepository.findAllLines();
+        if (existingLines.length === 0) {
+          const linesImported = await this.importRoutes(
+            routesContent,
+            translations,
+          );
+          this.logger.log(
+            `Re-imported ${linesImported} lines (table was empty)`,
+          );
+        }
+      }
 
       const tripsEntry = zip.getEntry('trips.txt');
       if (tripsEntry) {
