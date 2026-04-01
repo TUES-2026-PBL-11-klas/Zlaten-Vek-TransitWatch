@@ -59,6 +59,15 @@ jobs:
 
     - uses: azure/setup-kubectl@v4
 
+    - name: Create GHCR pull secret
+      run: |
+        kubectl create secret docker-registry ghcr-secret \
+          --docker-server=ghcr.io \
+          --docker-username=${{ github.actor }} \
+          --docker-password=${{ secrets.GITHUB_TOKEN }} \
+          -n transitwatch \
+          --dry-run=client -o yaml | kubectl apply -f -
+
     - name: Deploy
       run: |
         kubectl apply --validate=false -f k8s/
