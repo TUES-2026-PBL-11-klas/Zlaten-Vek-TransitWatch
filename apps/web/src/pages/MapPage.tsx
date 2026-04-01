@@ -1,7 +1,7 @@
 import 'leaflet/dist/leaflet.css';
 import './map.css';
 import L from 'leaflet';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { MapContainer, TileLayer, useMapEvents } from 'react-leaflet';
 import type { User } from '@supabase/supabase-js';
@@ -9,10 +9,12 @@ import { supabase } from '../lib/supabase';
 import StopMarkers from '../components/map/StopMarkers';
 import VehicleMarkers from '../components/map/VehicleMarkers';
 import RouteOverlay from '../components/map/RouteOverlay';
-import ArrivalPanel from '../components/panels/ArrivalPanel';
+import MapController from '../components/map/MapController';
+import VehiclePopup from '../components/map/VehiclePopup';
+import StopPopup from '../components/map/StopPopup';
 import TripTimelinePanel from '../components/panels/TripTimelinePanel';
 import { useTripTimeline } from '../hooks/useTripTimeline';
-import type { VehiclePosition } from '../types/transit';
+import type { VehiclePosition, TransitStop } from '../types/transit';
 
 // Fix Leaflet's broken default icon paths when bundled with Vite
 delete (L.Icon.Default.prototype as unknown as Record<string, unknown>)._getIconUrl;
@@ -25,6 +27,12 @@ L.Icon.Default.mergeOptions({
 const SOFIA_CENTER: [number, number] = [42.6977, 23.3219];
 const DEFAULT_ZOOM = 13;
 
+interface SelectedStop {
+  id: string;
+  lat: number;
+  lng: number;
+}
+
 function MapClickHandler({ onMapClick }: { onMapClick: () => void }) {
   useMapEvents({
     click: onMapClick,
@@ -33,40 +41,71 @@ function MapClickHandler({ onMapClick }: { onMapClick: () => void }) {
 }
 
 interface MapLayersProps {
-  onStopSelect: (stopId: string) => void;
+  onStopSelect: (stop: TransitStop) => void;
   onVehicleSelect: (vehicle: VehiclePosition) => void;
   onMapClick: () => void;
+  onDeselect: () => void;
   selectedVehicle: VehiclePosition | null;
+  selectedStop: SelectedStop | null;
   tripTimeline: ReturnType<typeof useTripTimeline>;
+  onFollowChange: (following: boolean) => void;
 }
 
 function MapLayers({
   onStopSelect,
   onVehicleSelect,
   onMapClick,
+  onDeselect,
   selectedVehicle,
+  selectedStop,
   tripTimeline,
+  onFollowChange,
 }: MapLayersProps) {
   return (
     <>
+      <MapController selectedVehicle={selectedVehicle} selectedStop={selectedStop} onFollowChange={onFollowChange} />
+
       {selectedVehicle && tripTimeline.timeline && (
         <RouteOverlay
           timeline={tripTimeline.timeline}
           shape={tripTimeline.shape}
         />
       )}
-      <StopMarkers onStopSelect={onStopSelect} />
-      <VehicleMarkers onVehicleSelect={onVehicleSelect} />
+
+      <StopMarkers
+        onStopSelect={onStopSelect}
+        selectedStopId={selectedStop?.id ?? null}
+      />
+      <VehicleMarkers
+        onVehicleSelect={onVehicleSelect}
+        selectedVehicleId={selectedVehicle?.vehicleId ?? null}
+      />
       <MapClickHandler onMapClick={onMapClick} />
+
+      {selectedVehicle && (
+        <VehiclePopup
+          vehicle={selectedVehicle}
+          timeline={tripTimeline.timeline}
+          loading={tripTimeline.loading}
+          onClose={onDeselect}
+        />
+      )}
+
+      <StopPopup selectedStop={selectedStop} onClose={onDeselect} />
     </>
   );
 }
 
 export default function MapPage() {
-  const [selectedStopId, setSelectedStopId] = useState<string | null>(null);
+  const [selectedStop, setSelectedStop] = useState<SelectedStop | null>(null);
   const [selectedVehicle, setSelectedVehicle] = useState<VehiclePosition | null>(null);
+  const [isFollowing, setIsFollowing] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const navigate = useNavigate();
+
+  const handleFollowChange = useCallback((following: boolean) => {
+    setIsFollowing(following);
+  }, []);
 
   const tripTimeline = useTripTimeline(selectedVehicle?.tripId ?? null);
 
@@ -83,18 +122,18 @@ export default function MapPage() {
     navigate('/login');
   }
 
-  const handleStopSelect = (stopId: string) => {
+  const handleStopSelect = (stop: TransitStop) => {
     setSelectedVehicle(null);
-    setSelectedStopId(stopId);
+    setSelectedStop({ id: stop.id, lat: stop.lat, lng: stop.lng });
   };
 
   const handleVehicleSelect = (vehicle: VehiclePosition) => {
-    setSelectedStopId(null);
+    setSelectedStop(null);
     setSelectedVehicle(vehicle);
   };
 
   const handleDeselect = () => {
-    setSelectedStopId(null);
+    setSelectedStop(null);
     setSelectedVehicle(null);
   };
 
@@ -136,6 +175,7 @@ export default function MapPage() {
           className="leaflet-map"
           style={{ height: '100%', width: '100%' }}
           zoomControl={true}
+          preferCanvas={true}
         >
           <TileLayer
             attribution='&copy; OpenStreetMap &copy; CARTO'
@@ -150,17 +190,31 @@ export default function MapPage() {
             onStopSelect={handleStopSelect}
             onVehicleSelect={handleVehicleSelect}
             onMapClick={handleDeselect}
+            onDeselect={handleDeselect}
             selectedVehicle={selectedVehicle}
+            selectedStop={selectedStop}
             tripTimeline={tripTimeline}
+            onFollowChange={handleFollowChange}
           />
         </MapContainer>
 
-        {/* Panels rendered outside MapContainer, positioned absolutely within the map div */}
-        {selectedStopId && (
-          <ArrivalPanel stopId={selectedStopId} onClose={handleDeselect} />
+        {/* Re-center button — shown when user pans away from followed vehicle */}
+        {selectedVehicle && !isFollowing && (
+          <button
+            className="recenter-btn"
+            onClick={() => setIsFollowing(true)}
+          >
+            Re-center
+          </button>
         )}
-        {selectedVehicle && tripTimeline.timeline && (
-          <TripTimelinePanel timeline={tripTimeline.timeline} onClose={handleDeselect} />
+
+        {/* Full trip timeline panel — slide-in detail view for selected vehicle */}
+        {selectedVehicle && (
+          <TripTimelinePanel
+            timeline={tripTimeline.timeline}
+            loading={tripTimeline.loading}
+            onClose={handleDeselect}
+          />
         )}
       </div>
     </div>

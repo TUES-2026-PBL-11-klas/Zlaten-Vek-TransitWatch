@@ -54,14 +54,21 @@ export default function RouteOverlay({ timeline, shape }: RouteOverlayProps) {
             <Tooltip direction="top" className="map-tooltip">
               <span style={{ fontWeight: 500 }}>{stop.stopName}</span>
               <br />
-              <span style={{ fontSize: 12, color: '#6B7280' }}>
-                {stop.estimatedTime}
-                {stop.delayMinutes > 0 && (
-                  <span style={{ color: '#F59E0B', marginLeft: 4 }}>
-                    +{stop.delayMinutes}мин
+              {isPassed ? (
+                <span style={{ fontSize: 12, color: '#9CA3AF' }}>{stop.estimatedTime}</span>
+              ) : (
+                <span style={{ fontSize: 12, color: '#6B7280' }}>
+                  <span style={{ fontWeight: 600, color: stop.minutesUntil <= 2 ? '#DC2626' : '#111827' }}>
+                    {stop.minutesUntil === 0 ? 'сега' : `${stop.minutesUntil} мин`}
                   </span>
-                )}
-              </span>
+                  {' · '}{stop.estimatedTime}
+                  {stop.delayMinutes > 0 && (
+                    <span style={{ color: stop.delayMinutes > 5 ? '#DC2626' : '#F59E0B', marginLeft: 4 }}>
+                      +{stop.delayMinutes}мин
+                    </span>
+                  )}
+                </span>
+              )}
             </Tooltip>
           </CircleMarker>
         );

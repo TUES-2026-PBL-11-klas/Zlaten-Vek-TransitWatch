@@ -58,6 +58,7 @@ export interface TripTimelineStop {
   scheduledTime: string;
   estimatedTime: string;
   delayMinutes: number;
+  minutesUntil: number;
   status: 'passed' | 'next' | 'upcoming';
 }
 

@@ -10,6 +10,7 @@ import {
   GtfsStopTime,
   GtfsShape,
   GtfsTranslation,
+  GtfsCalendarDate,
   gtfsRouteTypeToString,
   isValidSofiaCoord,
   StopTimeEntry,
@@ -33,6 +34,10 @@ export class GtfsStaticService implements OnModuleInit {
   private stopToTripsMap = new Map<string, StopTimeEntry[]>(); // reverse index: stopGtfsId → entries
   private tripToRouteMap = new Map<string, string>();
   private tripToShapeMap = new Map<string, string>();
+  private tripServiceMap = new Map<string, string>(); // tripId → serviceId
+  private activeServiceIds = new Set<string>(); // today's active services
+  private stopsByCode = new Map<string, string[]>(); // stop_code → [stopGtfsIds]
+  private stopIdToCode = new Map<string, string>(); // stopGtfsId → stop_code
 
   constructor(
     @Inject(TRANSIT_REPOSITORY)
@@ -117,6 +122,12 @@ export class GtfsStaticService implements OnModuleInit {
     // 3. Parse trips (in-memory mapping)
     this.parseTrips(files.get('trips.txt'));
 
+    // 3b. Parse calendar_dates for service filtering
+    this.parseCalendarDates(files.get('calendar_dates.txt'));
+
+    // 3c. Build stop_code index for sibling stop lookup
+    this.parseStopCodes(files.get('stops.txt'));
+
     // 4. Parse stop_times and populate LineStops
     await this.importStopTimes(files.get('stop_times.txt'));
 
@@ -144,6 +155,21 @@ export class GtfsStaticService implements OnModuleInit {
 
   getStopToTripsMap(): Map<string, StopTimeEntry[]> {
     return this.stopToTripsMap;
+  }
+
+  /** Check if a trip's service is active today */
+  isTripActiveToday(tripId: string): boolean {
+    if (this.activeServiceIds.size === 0) return true; // no calendar data = assume all active
+    const serviceId = this.tripServiceMap.get(tripId);
+    if (!serviceId) return false;
+    return this.activeServiceIds.has(serviceId);
+  }
+
+  /** Get all sibling stop IDs sharing the same stop_code (in-memory, no DB) */
+  getSiblingStopIds(stopGtfsId: string): string[] {
+    const code = this.stopIdToCode.get(stopGtfsId);
+    if (!code) return [stopGtfsId];
+    return this.stopsByCode.get(code) ?? [stopGtfsId];
   }
 
   private buildReverseIndex(): void {
@@ -208,6 +234,7 @@ export class GtfsStaticService implements OnModuleInit {
 
       await this.transitRepository.upsertStop({
         gtfsId: row.stop_id,
+        stopCode: row.stop_code || undefined,
         name,
         lat,
         lng,
@@ -261,15 +288,70 @@ export class GtfsStaticService implements OnModuleInit {
     const rows = parseGtfsCsv<GtfsTrip>(content);
     this.tripToRouteMap.clear();
     this.tripToShapeMap.clear();
+    this.tripServiceMap.clear();
 
     for (const row of rows) {
       this.tripToRouteMap.set(row.trip_id, row.route_id);
+      if (row.service_id) {
+        this.tripServiceMap.set(row.trip_id, row.service_id);
+      }
       if (row.shape_id) {
         this.tripToShapeMap.set(row.trip_id, row.shape_id);
       }
     }
 
     this.logger.log(`Parsed ${rows.length} trips into memory`);
+  }
+
+  /** Parse calendar_dates.txt and build today's active service IDs */
+  private parseCalendarDates(content: string | undefined): void {
+    if (!content) {
+      this.logger.warn(
+        'calendar_dates.txt not found — all trips assumed active',
+      );
+      this.activeServiceIds.clear();
+      return;
+    }
+
+    const rows = parseGtfsCsv<GtfsCalendarDate>(content);
+    const now = new Date();
+    const todayStr =
+      String(now.getFullYear()) +
+      String(now.getMonth() + 1).padStart(2, '0') +
+      String(now.getDate()).padStart(2, '0');
+
+    this.activeServiceIds.clear();
+    for (const row of rows) {
+      if (row.date === todayStr && row.exception_type === '1') {
+        this.activeServiceIds.add(row.service_id);
+      }
+    }
+
+    this.logger.log(
+      `Calendar: ${this.activeServiceIds.size} active services for ${todayStr}`,
+    );
+  }
+
+  /** Build stop_code → stopGtfsIds index from stops.txt */
+  private parseStopCodes(content: string | undefined): void {
+    if (!content) return;
+
+    const rows = parseGtfsCsv<GtfsStop>(content);
+    this.stopsByCode.clear();
+    this.stopIdToCode.clear();
+
+    for (const row of rows) {
+      if (!row.stop_code) continue;
+      this.stopIdToCode.set(row.stop_id, row.stop_code);
+      if (!this.stopsByCode.has(row.stop_code)) {
+        this.stopsByCode.set(row.stop_code, []);
+      }
+      this.stopsByCode.get(row.stop_code)!.push(row.stop_id);
+    }
+
+    this.logger.log(
+      `Built stop_code index: ${this.stopsByCode.size} codes, ${this.stopIdToCode.size} stops`,
+    );
   }
 
   private async importStopTimes(content: string | undefined): Promise<void> {
@@ -439,6 +521,16 @@ export class GtfsStaticService implements OnModuleInit {
       const tripsEntry = zip.getEntry('trips.txt');
       if (tripsEntry) {
         this.parseTrips(tripsEntry.getData().toString('utf-8'));
+      }
+
+      const calendarDatesEntry = zip.getEntry('calendar_dates.txt');
+      if (calendarDatesEntry) {
+        this.parseCalendarDates(calendarDatesEntry.getData().toString('utf-8'));
+      }
+
+      const stopsEntry = zip.getEntry('stops.txt');
+      if (stopsEntry) {
+        this.parseStopCodes(stopsEntry.getData().toString('utf-8'));
       }
 
       const stopTimesEntry = zip.getEntry('stop_times.txt');

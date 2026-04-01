@@ -1,5 +1,6 @@
 export interface GtfsStop {
   stop_id: string;
+  stop_code?: string;
   stop_name: string;
   stop_lat: string;
   stop_lon: string;
@@ -16,8 +17,15 @@ export interface GtfsRoute {
 export interface GtfsTrip {
   trip_id: string;
   route_id: string;
+  service_id: string;
   shape_id?: string;
   direction_id?: string;
+}
+
+export interface GtfsCalendarDate {
+  service_id: string;
+  date: string; // YYYYMMDD
+  exception_type: string; // 1=added, 2=removed
 }
 
 export interface GtfsStopTime {
@@ -159,6 +167,7 @@ export interface TripTimelineStop {
   scheduledTime: string; // HH:mm
   estimatedTime: string; // HH:mm
   delayMinutes: number;
+  minutesUntil: number; // minutes from now (0 for passed stops)
   status: 'passed' | 'next' | 'upcoming';
 }
 

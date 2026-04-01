@@ -23,7 +23,7 @@ export class GtfsRealtimeService {
   // tripId → (stopGtfsId → delay in seconds)
   private tripDelays = new Map<string, Map<string, number>>();
 
-  @Interval(15000)
+  @Interval(10000)
   async pollVehiclePositions() {
     try {
       const response = await fetch(VEHICLE_POSITIONS_URL);

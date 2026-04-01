@@ -7,6 +7,7 @@ import {
 } from '../interfaces/transit-repository.interface';
 import {
   ArrivalInfo,
+  StopTimeEntry,
   TripTimeline,
   TripTimelineStop,
   getCurrentGtfsSeconds,
@@ -27,14 +28,25 @@ export class StopArrivalService {
   ) {}
 
   async getArrivals(stopId: string): Promise<ArrivalInfo[]> {
-    // 1. Look up stop to get its gtfsId
+    // 1. Look up stop and find siblings (same stop_code = different platforms)
     const stop = await this.transitRepository.findStopById(stopId);
     if (!stop || !stop.gtfsId) return [];
 
-    // 2. Find all scheduled stop times at this stop
+    // Use in-memory stop_code index for sibling lookup (more reliable than DB)
+    const siblingGtfsIds = this.gtfsStaticService.getSiblingStopIds(
+      stop.gtfsId,
+    );
+
+    // 2. Find all scheduled stop times at this stop and its siblings
     const stopToTrips = this.gtfsStaticService.getStopToTripsMap();
-    const entries = stopToTrips.get(stop.gtfsId);
-    if (!entries || entries.length === 0) return [];
+    const entries: StopTimeEntry[] = [];
+
+    for (const gtfsId of siblingGtfsIds) {
+      const stopEntries = stopToTrips.get(gtfsId);
+      if (stopEntries) entries.push(...stopEntries);
+    }
+
+    if (entries.length === 0) return [];
 
     const tripToRoute = this.gtfsStaticService.getTripToRouteMap();
     const nowSeconds = getCurrentGtfsSeconds();
@@ -49,6 +61,9 @@ export class StopArrivalService {
     }> = [];
 
     for (const entry of entries) {
+      // Only include trips that run today (service calendar filtering)
+      if (!this.gtfsStaticService.isTripActiveToday(entry.tripId)) continue;
+
       const scheduledSeconds = parseGtfsTimeToSeconds(entry.arrivalTime);
 
       // Only include arrivals within the lookahead window
@@ -140,10 +155,29 @@ export class StopArrivalService {
   }
 
   async getTripTimeline(tripId: string): Promise<TripTimeline | null> {
-    const stopTimes = this.gtfsStaticService.getStopTimesMap().get(tripId);
+    const stopTimesMap = this.gtfsStaticService.getStopTimesMap();
+    const tripToRouteMap = this.gtfsStaticService.getTripToRouteMap();
+
+    let stopTimes = stopTimesMap.get(tripId);
+    let resolvedTripId = tripId;
+
+    // Realtime trip IDs use a different service_id suffix than the static GTFS
+    // (e.g. realtime "A26-A4261-5-12-17194476341" vs static "A26-A4261-5-12-20315579490").
+    // Fall back to prefix-based matching by stripping the last "-{serviceId}" segment.
+    if ((!stopTimes || stopTimes.length === 0) && tripId.includes('-')) {
+      const prefix = tripId.substring(0, tripId.lastIndexOf('-'));
+      for (const [key, val] of stopTimesMap) {
+        if (key.startsWith(prefix + '-')) {
+          stopTimes = val;
+          resolvedTripId = key;
+          break;
+        }
+      }
+    }
+
     if (!stopTimes || stopTimes.length === 0) return null;
 
-    const routeGtfsId = this.gtfsStaticService.getTripToRouteMap().get(tripId);
+    const routeGtfsId = tripToRouteMap.get(resolvedTripId);
     if (!routeGtfsId) return null;
 
     const line = await this.transitRepository.findLineByGtfsId(routeGtfsId);
@@ -184,6 +218,10 @@ export class StopArrivalService {
         scheduledTime: secondsToTimeString(scheduledSeconds),
         estimatedTime: secondsToTimeString(estimatedSeconds),
         delayMinutes: Math.round(delaySeconds / 60),
+        minutesUntil: Math.max(
+          0,
+          Math.round((estimatedSeconds - nowSeconds) / 60),
+        ),
         status,
       });
     }
