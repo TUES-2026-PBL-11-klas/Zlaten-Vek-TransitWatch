@@ -8,7 +8,7 @@ interface UseStopsResult {
   loading: boolean;
 }
 
-const STOP_ZOOM_THRESHOLD = 14;
+export const STOP_ZOOM_THRESHOLD = 14;
 const DEBOUNCE_MS = 500;
 
 function getBbox(map: L.Map) {

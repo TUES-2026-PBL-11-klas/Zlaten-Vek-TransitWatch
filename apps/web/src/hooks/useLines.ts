@@ -24,6 +24,9 @@ export function useLines(): UseLinesResult {
         }
         setLinesByGtfsId(map);
       })
+      .catch((err) => {
+        console.error('Failed to load transit lines:', err);
+      })
       .finally(() => setLoading(false));
   }, []);
 

@@ -1,7 +1,7 @@
 import { useCallback, useState, memo } from 'react';
 import L from 'leaflet';
 import { Marker, Tooltip, useMap } from 'react-leaflet';
-import { useStops } from '../../hooks/useStops';
+import { useStops, STOP_ZOOM_THRESHOLD } from '../../hooks/useStops';
 import { TRANSIT_COLORS } from '../../types/transit';
 import type { TransitStop, TransitType } from '../../types/transit';
 
@@ -91,7 +91,7 @@ export default function StopMarkers({ onStopSelect, selectedStopId }: StopMarker
     [onStopSelect],
   );
 
-  if (zoom < 15) return null;
+  if (zoom < STOP_ZOOM_THRESHOLD) return null;
 
   return (
     <>

@@ -509,14 +509,22 @@ export class GtfsStaticService implements OnModuleInit {
       }
     }
 
+    // Cache line and stop lookups to avoid repeated DB queries per tuple
+    const lineCache = new Map<string, Awaited<ReturnType<typeof this.transitRepository.findLineByGtfsId>>>();
+    const stopCache = new Map<string, Awaited<ReturnType<typeof this.transitRepository.findStopByGtfsId>>>();
+
     let imported = 0;
     for (const data of lineStopSet.values()) {
-      const line = await this.transitRepository.findLineByGtfsId(
-        data.routeGtfsId,
-      );
-      const stop = await this.transitRepository.findStopByGtfsId(
-        data.stopGtfsId,
-      );
+      let line = lineCache.get(data.routeGtfsId);
+      if (line === undefined) {
+        line = await this.transitRepository.findLineByGtfsId(data.routeGtfsId);
+        lineCache.set(data.routeGtfsId, line ?? null);
+      }
+      let stop = stopCache.get(data.stopGtfsId);
+      if (stop === undefined) {
+        stop = await this.transitRepository.findStopByGtfsId(data.stopGtfsId);
+        stopCache.set(data.stopGtfsId, stop ?? null);
+      }
 
       if (!line || !stop) continue;
 

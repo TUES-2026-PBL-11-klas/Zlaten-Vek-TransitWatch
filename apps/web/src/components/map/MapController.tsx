@@ -22,7 +22,7 @@ export default function MapController({ selectedVehicle, selectedStop, onFollowC
   const isAutoMoving = useRef(false);
 
   const stopFollowing = useCallback(() => {
-    if (isFollowing.current) {
+    if (isFollowing.current && !isAutoMoving.current) {
       isFollowing.current = false;
       onFollowChange?.(false);
     }

@@ -17,10 +17,6 @@ import {
 import { GtfsStaticService } from './services/gtfs-static.service';
 import { GtfsRealtimeService } from './services/gtfs-realtime.service';
 import { StopArrivalService } from './services/stop-arrival.service';
-import {
-  getCurrentGtfsSeconds,
-  parseGtfsTimeToSeconds,
-} from './interfaces/gtfs.types';
 
 @Controller('transit')
 export class TransitController {
@@ -163,69 +159,6 @@ export class TransitController {
       throw new NotFoundException(`Trip ${tripId} not found`);
     }
     return timeline;
-  }
-
-  @Public()
-  @Get('debug/stop/:id')
-  async debugStop(@Param('id') id: string) {
-    const stop = await this.transitRepository.findStopById(id);
-    if (!stop) return { error: 'stop not found' };
-
-    const gtfsId = stop.gtfsId;
-    const siblings = gtfsId
-      ? this.gtfsStaticService.getSiblingStopIds(gtfsId)
-      : [];
-    const stopToTrips = this.gtfsStaticService.getStopToTripsMap();
-    const tripToRoute = this.gtfsStaticService.getTripToRouteMap();
-
-    let totalEntries = 0;
-    let activeEntries = 0;
-    let inWindowEntries = 0;
-    const activeSamples: Array<{
-      stopId: string;
-      tripId: string;
-      arrival: string;
-      hasRoute: boolean;
-    }> = [];
-
-    const nowSeconds = getCurrentGtfsSeconds();
-    const windowEnd = nowSeconds + 2 * 3600;
-
-    for (const sid of siblings) {
-      const entries = stopToTrips.get(sid) ?? [];
-      for (const e of entries) {
-        totalEntries++;
-        const active = this.gtfsStaticService.isTripActiveToday(e.tripId);
-        if (!active) continue;
-        activeEntries++;
-        const secs = parseGtfsTimeToSeconds(e.arrivalTime);
-        if (secs >= nowSeconds && secs <= windowEnd) inWindowEntries++;
-        if (activeSamples.length < 5) {
-          activeSamples.push({
-            stopId: e.stopGtfsId,
-            tripId: e.tripId,
-            arrival: e.arrivalTime,
-            hasRoute: tripToRoute.has(e.tripId),
-          });
-        }
-      }
-    }
-
-    return {
-      stopId: id,
-      gtfsId,
-      stopName: stop.name,
-      siblings,
-      stopToTripsMapSize: stopToTrips.size,
-      tripToRouteMapSize: tripToRoute.size,
-      totalEntries,
-      activeEntries,
-      inWindowEntries,
-      nowSeconds,
-      windowEnd,
-      nowTime: new Date().toLocaleTimeString(),
-      activeSamples,
-    };
   }
 
   @Public()
