@@ -13,9 +13,11 @@ spec:
       labels:
         app: api
     spec:
+      imagePullSecrets:
+        - name: ghcr-secret
       containers:
         - name: api
-          image: transitwatch-api:latest
+          image: ghcr.io/tues-2026-pbl-11-klas/transitwatch-api:latest
           ports:
             - containerPort: 3000
           env:
