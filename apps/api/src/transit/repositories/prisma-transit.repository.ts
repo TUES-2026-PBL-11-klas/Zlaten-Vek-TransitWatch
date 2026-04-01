@@ -39,13 +39,22 @@ export class PrismaTransitRepository implements ITransitRepository {
       },
       include: {
         _count: { select: { lineStops: true } },
+        lineStops: {
+          select: { line: { select: { type: true } } },
+        },
       },
     });
 
-    return stops.map((stop) => ({
-      ...stop,
-      lineCount: stop._count.lineStops,
-    }));
+    return stops.map((stop) => {
+      const types = [...new Set(stop.lineStops.map((ls) => ls.line.type))];
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { lineStops: _ls, ...rest } = stop;
+      return {
+        ...rest,
+        lineCount: stop._count.lineStops,
+        types,
+      };
+    });
   }
 
   async findStopById(id: string): Promise<StopDetail | null> {

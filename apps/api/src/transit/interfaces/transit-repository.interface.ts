@@ -2,6 +2,7 @@ import { Line, Stop, Shape } from '@prisma/client';
 
 export interface StopWithLineCount extends Stop {
   lineCount: number;
+  types: string[];
 }
 
 export interface StopDetail extends Stop {
