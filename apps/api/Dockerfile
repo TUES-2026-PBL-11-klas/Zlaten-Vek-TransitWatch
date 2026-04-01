@@ -29,4 +29,4 @@ COPY --from=builder /app/packages/shared/dist packages/shared/dist
 
 EXPOSE 3000
 
-CMD ["node", "apps/api/dist/main"]
+CMD ["node", "apps/api/dist/apps/api/src/main"]
