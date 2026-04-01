@@ -18,5 +18,9 @@
   },
   "devDependencies": {
     "husky": "^9.1.7"
+  },
+  "dependencies": {
+    "@prisma/client": "^7.6.0",
+    "prisma": "^7.6.0"
   }
 }
