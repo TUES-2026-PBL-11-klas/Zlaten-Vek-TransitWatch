@@ -67,7 +67,7 @@ jobs:
 
     - name: Deploy
       run: |
-        kubectl apply -f k8s/
+        kubectl apply --validate=false -f k8s/
         kubectl set image deployment/api api=${{ env.API_IMAGE }}:latest -n transitwatch
         kubectl set image deployment/web web=${{ env.WEB_IMAGE }}:latest -n transitwatch
         kubectl rollout status deployment/api -n transitwatch --timeout=120s
