@@ -40,13 +40,19 @@ export function useVehicles(): UseVehiclesResult {
     transitApi.getVehicles().then((res) => {
       lastTimestampRef.current = res.timestamp;
       mergeVehicles(res.vehicles);
+    }).catch((err) => {
+      console.error('Failed to fetch vehicles:', err);
     });
 
     // Delta polling
     intervalRef.current = setInterval(async () => {
-      const res = await transitApi.getVehicles(lastTimestampRef.current);
-      lastTimestampRef.current = res.timestamp;
-      mergeVehicles(res.vehicles);
+      try {
+        const res = await transitApi.getVehicles(lastTimestampRef.current);
+        lastTimestampRef.current = res.timestamp;
+        mergeVehicles(res.vehicles);
+      } catch (err) {
+        console.error('Failed to poll vehicles:', err);
+      }
     }, POLL_INTERVAL_MS);
 
     return () => {

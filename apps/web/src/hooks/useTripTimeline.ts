@@ -38,6 +38,8 @@ function reducer(state: UseTripTimelineResult, action: Action): UseTripTimelineR
       return { ...state, shape: action.shape };
     case 'loading-done':
       return { ...state, loading: false };
+    default:
+      return state;
   }
 }
 

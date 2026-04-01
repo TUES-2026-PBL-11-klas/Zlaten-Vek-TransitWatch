@@ -281,9 +281,11 @@ export class StopArrivalService {
     const nowUnixSec = Math.floor(Date.now() / 1000);
     const nowGtfsSeconds = getCurrentGtfsSeconds();
 
-    // Get all predictions for this trip at once
+    // Get all predictions for this trip at once, preferring resolvedTripId
     const predictions: Map<string, TripStopPrediction> =
-      this.gtfsRealtimeService.getTripPredictions(tripId) ?? new Map<string, TripStopPrediction>();
+      this.gtfsRealtimeService.getTripPredictions(resolvedTripId) ??
+      this.gtfsRealtimeService.getTripPredictions(tripId) ??
+      new Map<string, TripStopPrediction>();
 
     const stops: TripTimelineStop[] = [];
     let foundNext = false;
@@ -436,7 +438,9 @@ export class StopArrivalService {
     const nowUnixSec = Math.floor(Date.now() / 1000);
     const nowGtfsSeconds = getCurrentGtfsSeconds();
     const predictions: Map<string, TripStopPrediction> =
-      this.gtfsRealtimeService.getTripPredictions(tripId) ?? new Map<string, TripStopPrediction>();
+      this.gtfsRealtimeService.getTripPredictions(resolvedTripId) ??
+      this.gtfsRealtimeService.getTripPredictions(tripId) ??
+      new Map<string, TripStopPrediction>();
 
     const stops: TripTimelineStop[] = [];
     let foundNext = false;
