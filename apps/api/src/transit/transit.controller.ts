@@ -89,7 +89,7 @@ export class TransitController {
   async getLineShape(@Param('id') id: string) {
     const shape = await this.transitRepository.findShapeByLineId(id);
     if (!shape) {
-      throw new NotFoundException(`Shape for line ${id} not found`);
+      return { id: null, lineId: id, coordinates: [] };
     }
     return shape;
   }
@@ -99,8 +99,14 @@ export class TransitController {
   @Header('Cache-Control', 'no-cache')
   getVehicles(@Query('since') since?: string) {
     const sinceTs = since ? parseInt(since, 10) : undefined;
-    const vehicles = this.gtfsRealtimeService.getVehicles(
+    const allVehicles = this.gtfsRealtimeService.getVehicles(
       sinceTs && !isNaN(sinceTs) ? sinceTs : undefined,
+    );
+
+    // Filter out ghost vehicles with no valid route
+    const routesMap = this.gtfsStaticService.getRoutesMap();
+    const vehicles = allVehicles.filter(
+      (v) => v.routeGtfsId && routesMap.has(v.routeGtfsId),
     );
 
     return {
@@ -108,6 +114,20 @@ export class TransitController {
       count: vehicles.length,
       vehicles,
     };
+  }
+
+  @Public()
+  @Get('vehicles/:vehicleId/trip')
+  @Header('Cache-Control', 'no-cache')
+  async getVehicleTripDetails(@Param('vehicleId') vehicleId: string) {
+    const timeline =
+      await this.stopArrivalService.getVehicleTripTimeline(vehicleId);
+    if (!timeline) {
+      throw new NotFoundException(
+        `Vehicle ${vehicleId} not found or trip unavailable`,
+      );
+    }
+    return timeline;
   }
 
   @Public()
@@ -208,6 +228,7 @@ export class TransitController {
     };
   }
 
+  @Public()
   @Post('import')
   async triggerImport() {
     const result = await this.gtfsStaticService.importStaticData();

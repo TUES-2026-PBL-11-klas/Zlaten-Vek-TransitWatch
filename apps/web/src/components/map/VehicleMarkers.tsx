@@ -1,6 +1,6 @@
 import { memo, useState, useCallback } from 'react';
 import L from 'leaflet';
-import { Marker, Tooltip, useMap, useMapEvents } from 'react-leaflet';
+import { Marker, useMap, useMapEvents } from 'react-leaflet';
 import { useVehicles } from '../../hooks/useVehicles';
 import { useLines } from '../../hooks/useLines';
 import { TRANSIT_COLORS } from '../../types/transit';
@@ -24,11 +24,13 @@ const TYPE_ICON_SVG: Record<string, string> = {
 
 function buildVehicleIcon(
   line: TransitLine | undefined,
+  vehicle: VehiclePosition,
   bearing: number | null,
   size: 'sm' | 'md' | 'lg',
 ): L.DivIcon {
-  const color = line?.color ? `#${line.color}` : (TRANSIT_COLORS[line?.type ?? ''] ?? '#6B7280');
-  const name = line?.name ?? '?';
+  const type = line?.type ?? (vehicle.routeType as TransitLine['type']) ?? undefined;
+  const color = line?.color ? `#${line.color}` : (TRANSIT_COLORS[type ?? ''] ?? '#6B7280');
+  const name = line?.name ?? vehicle.routeShortName ?? '?';
 
   const cfg = {
     sm:  { fontSize: 9,  px: 4, py: 1, radius: 8,  border: 1.5, arrow: 4, shadow: '0 1px 4px' },
@@ -37,7 +39,7 @@ function buildVehicleIcon(
   }[size];
 
   // Only show type icon at md/lg sizes
-  const typeSvg = size !== 'sm' ? (TYPE_ICON_SVG[line?.type ?? ''] ?? '') : '';
+  const typeSvg = size !== 'sm' ? (TYPE_ICON_SVG[type ?? ''] ?? '') : '';
 
   const arrowSize = cfg.arrow;
   const bearingHtml =
@@ -76,7 +78,7 @@ const VehicleMarkerItem = memo(function VehicleMarkerItem({
   size: 'sm' | 'md' | 'lg';
   onVehicleSelect: (v: VehiclePosition) => void;
 }) {
-  const icon = buildVehicleIcon(line, vehicle.bearing, isSelected ? 'lg' : size);
+  const icon = buildVehicleIcon(line, vehicle, vehicle.bearing, isSelected ? 'lg' : size);
 
   return (
     <Marker
@@ -84,13 +86,7 @@ const VehicleMarkerItem = memo(function VehicleMarkerItem({
       icon={icon}
       zIndexOffset={isSelected ? 1000 : 0}
       eventHandlers={{ click: () => onVehicleSelect(vehicle) }}
-    >
-      {line && (
-        <Tooltip direction="top" offset={[0, -16]} className="map-tooltip" opacity={isSelected ? 0 : 1}>
-          {line.name}
-        </Tooltip>
-      )}
-    </Marker>
+    />
   );
 });
 
