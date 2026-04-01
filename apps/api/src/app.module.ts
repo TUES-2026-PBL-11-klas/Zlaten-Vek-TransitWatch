@@ -7,6 +7,7 @@ import { AuthModule } from './auth/auth.module';
 import { ReportModule } from './report/report.module';
 import { LineModule } from './line/line.module';
 import { UserModule } from './user/user.module';
+import { TransitModule } from './transit/transit.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { APP_GUARD } from '@nestjs/core';
 
@@ -18,6 +19,7 @@ import { APP_GUARD } from '@nestjs/core';
     ReportModule,
     LineModule,
     UserModule,
+    TransitModule,
   ],
   controllers: [AppController],
   providers: [AppService, { provide: APP_GUARD, useClass: JwtAuthGuard }],
