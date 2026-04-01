@@ -14,13 +14,19 @@ export class PrismaTransitRepository implements ITransitRepository {
 
   async upsertStop(data: {
     gtfsId: string;
+    stopCode?: string;
     name: string;
     lat: number;
     lng: number;
   }): Promise<Stop> {
     return this.prisma.stop.upsert({
       where: { gtfsId: data.gtfsId },
-      update: { name: data.name, lat: data.lat, lng: data.lng },
+      update: {
+        name: data.name,
+        lat: data.lat,
+        lng: data.lng,
+        stopCode: data.stopCode,
+      },
       create: data,
     });
   }
@@ -131,6 +137,20 @@ export class PrismaTransitRepository implements ITransitRepository {
 
   async findStopByGtfsId(gtfsId: string): Promise<Stop | null> {
     return this.prisma.stop.findFirst({ where: { gtfsId } });
+  }
+
+  async findSiblingStopGtfsIds(stopId: string): Promise<string[]> {
+    const stop = await this.prisma.stop.findUnique({
+      where: { id: stopId },
+      select: { stopCode: true, gtfsId: true },
+    });
+    if (!stop?.stopCode) return stop?.gtfsId ? [stop.gtfsId] : [];
+
+    const siblings = await this.prisma.stop.findMany({
+      where: { stopCode: stop.stopCode, gtfsId: { not: null } },
+      select: { gtfsId: true },
+    });
+    return siblings.map((s) => s.gtfsId!);
   }
 
   async countStopsWithGtfsId(): Promise<number> {

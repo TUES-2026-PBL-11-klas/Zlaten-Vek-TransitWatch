@@ -9,7 +9,7 @@ interface UseArrivalsResult {
   error: string | null;
 }
 
-const REFRESH_INTERVAL_MS = 30_000;
+const REFRESH_INTERVAL_MS = 15_000;
 
 export function useArrivals(stopId: string | null): UseArrivalsResult {
   const [arrivals, setArrivals] = useState<ArrivalInfo[]>([]);

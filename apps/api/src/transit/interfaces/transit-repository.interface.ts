@@ -22,6 +22,7 @@ export interface ITransitRepository {
   // Stops
   upsertStop(data: {
     gtfsId: string;
+    stopCode?: string;
     name: string;
     lat: number;
     lng: number;
@@ -56,6 +57,7 @@ export interface ITransitRepository {
 
   // Bulk helpers
   findStopByGtfsId(gtfsId: string): Promise<Stop | null>;
+  findSiblingStopGtfsIds(stopId: string): Promise<string[]>;
   countStopsWithGtfsId(): Promise<number>;
 }
 

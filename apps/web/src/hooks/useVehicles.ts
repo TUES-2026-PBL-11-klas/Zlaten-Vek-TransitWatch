@@ -7,7 +7,7 @@ interface UseVehiclesResult {
   lastUpdate: number;
 }
 
-const POLL_INTERVAL_MS = 15_000;
+const POLL_INTERVAL_MS = 10_000;
 const STALE_THRESHOLD_MS = 60_000;
 
 export function useVehicles(): UseVehiclesResult {
@@ -26,7 +26,7 @@ export function useVehicles(): UseVehiclesResult {
       }
       // Remove stale vehicles
       for (const [id, v] of next) {
-        if (now - v.updatedAt > STALE_THRESHOLD_MS) {
+        if (now - v.updatedAt * 1000 > STALE_THRESHOLD_MS) {
           next.delete(id);
         }
       }

@@ -3,9 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+  provider = "postgresql"
 }
 
 model User {
@@ -35,12 +33,14 @@ model Line {
 model Stop {
   id        String     @id @default(uuid())
   gtfsId    String?    @unique @map("gtfs_id")
+  stopCode  String?    @map("stop_code")
   name      String
   lat       Float
   lng       Float
   lineStops LineStop[]
 
   @@index([lat, lng])
+  @@index([stopCode])
   @@map("stops")
 }
 

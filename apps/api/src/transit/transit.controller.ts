@@ -46,11 +46,19 @@ export class TransitController {
 
     const [minLat, minLng, maxLat, maxLng] = parts;
 
-    return this.transitRepository.findStopsByBbox({
+    const stops = await this.transitRepository.findStopsByBbox({
       minLat,
       minLng,
       maxLat,
       maxLng,
+    });
+
+    // Only return stops that have scheduled stop_times (via siblings)
+    const stopToTrips = this.gtfsStaticService.getStopToTripsMap();
+    return stops.filter((stop) => {
+      if (!stop.gtfsId) return false;
+      const siblings = this.gtfsStaticService.getSiblingStopIds(stop.gtfsId);
+      return siblings.some((sid) => stopToTrips.has(sid));
     });
   }
 
@@ -125,6 +133,60 @@ export class TransitController {
       throw new NotFoundException(`Trip ${tripId} not found`);
     }
     return timeline;
+  }
+
+  @Public()
+  @Get('debug/stop/:id')
+  async debugStop(@Param('id') id: string) {
+    const stop = await this.transitRepository.findStopById(id);
+    if (!stop) return { error: 'stop not found' };
+
+    const gtfsId = stop.gtfsId;
+    const siblings = gtfsId
+      ? this.gtfsStaticService.getSiblingStopIds(gtfsId)
+      : [];
+    const stopToTrips = this.gtfsStaticService.getStopToTripsMap();
+    const tripToRoute = this.gtfsStaticService.getTripToRouteMap();
+
+    let totalEntries = 0;
+    let activeEntries = 0;
+    const sampleEntries: Array<{
+      stopId: string;
+      tripId: string;
+      arrival: string;
+      active: boolean;
+      hasRoute: boolean;
+    }> = [];
+
+    for (const sid of siblings) {
+      const entries = stopToTrips.get(sid) ?? [];
+      for (const e of entries) {
+        totalEntries++;
+        const active = this.gtfsStaticService.isTripActiveToday(e.tripId);
+        if (active) activeEntries++;
+        if (sampleEntries.length < 5) {
+          sampleEntries.push({
+            stopId: e.stopGtfsId,
+            tripId: e.tripId,
+            arrival: e.arrivalTime,
+            active,
+            hasRoute: tripToRoute.has(e.tripId),
+          });
+        }
+      }
+    }
+
+    return {
+      stopId: id,
+      gtfsId,
+      stopName: stop.name,
+      siblings,
+      stopToTripsMapSize: stopToTrips.size,
+      tripToRouteMapSize: tripToRoute.size,
+      totalEntries,
+      activeEntries,
+      sampleEntries,
+    };
   }
 
   @Post('import')

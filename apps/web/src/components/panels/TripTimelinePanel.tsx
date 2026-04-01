@@ -4,7 +4,8 @@ import type { TripTimeline } from '../../types/transit';
 import './panels.css';
 
 interface TripTimelinePanelProps {
-  timeline: TripTimeline;
+  timeline: TripTimeline | null;
+  loading?: boolean;
   onClose: () => void;
 }
 
@@ -15,7 +16,7 @@ const TYPE_LABELS: Record<string, string> = {
   metro: 'Метро',
 };
 
-export default function TripTimelinePanel({ timeline, onClose }: TripTimelinePanelProps) {
+export default function TripTimelinePanel({ timeline, loading, onClose }: TripTimelinePanelProps) {
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
@@ -29,12 +30,12 @@ export default function TripTimelinePanel({ timeline, onClose }: TripTimelinePan
   };
 
   const lineColor =
-    timeline.lineColor
+    timeline?.lineColor
       ? `#${timeline.lineColor}`
-      : (TRANSIT_COLORS[timeline.lineType] ?? '#6B7280');
+      : (timeline ? (TRANSIT_COLORS[timeline.lineType] ?? '#6B7280') : '#6B7280');
 
-  const firstStop = timeline.stops[0];
-  const lastStop = timeline.stops[timeline.stops.length - 1];
+  const firstStop = timeline?.stops[0];
+  const lastStop = timeline ? timeline.stops[timeline.stops.length - 1] : undefined;
 
   return (
     <div className={`panel-container${open ? ' open' : ''}`}>
@@ -51,25 +52,34 @@ export default function TripTimelinePanel({ timeline, onClose }: TripTimelinePan
           }}
         >
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-              <span
-                style={{
-                  width: 12,
-                  height: 12,
-                  borderRadius: '50%',
-                  background: lineColor,
-                  display: 'inline-block',
-                  flexShrink: 0,
-                }}
-              />
-              <h2 style={{ margin: 0, fontSize: 18, fontWeight: 600, color: '#111827' }}>
-                {TYPE_LABELS[timeline.lineType] ?? timeline.lineType} {timeline.lineName}
-              </h2>
-            </div>
-            {firstStop && lastStop && (
-              <p style={{ margin: 0, fontSize: 13, color: '#6B7280' }}>
-                {firstStop.stopName} → {lastStop.stopName}
-              </p>
+            {loading || !timeline ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <div style={{ width: 140, height: 18, background: '#E5E7EB', borderRadius: 4 }} />
+                <div style={{ width: 200, height: 13, background: '#F3F4F6', borderRadius: 4 }} />
+              </div>
+            ) : (
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                  <span
+                    style={{
+                      width: 12,
+                      height: 12,
+                      borderRadius: '50%',
+                      background: lineColor,
+                      display: 'inline-block',
+                      flexShrink: 0,
+                    }}
+                  />
+                  <h2 style={{ margin: 0, fontSize: 18, fontWeight: 600, color: '#111827' }}>
+                    {TYPE_LABELS[timeline.lineType] ?? timeline.lineType} {timeline.lineName}
+                  </h2>
+                </div>
+                {firstStop && lastStop && (
+                  <p style={{ margin: 0, fontSize: 13, color: '#6B7280' }}>
+                    {firstStop.stopName} → {lastStop.stopName}
+                  </p>
+                )}
+              </>
             )}
           </div>
           <button
@@ -91,8 +101,21 @@ export default function TripTimelinePanel({ timeline, onClose }: TripTimelinePan
 
         <div style={{ height: 1, background: '#E5E7EB', margin: '0 20px' }} />
 
+        {/* Loading skeleton */}
+        {(loading || !timeline) && (
+          <div style={{ padding: '12px 20px 20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {[80, 120, 100, 140, 90].map((w, i) => (
+              <div key={i} style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#E5E7EB', flexShrink: 0 }} />
+                <div style={{ width: w, height: 13, background: '#F3F4F6', borderRadius: 4 }} />
+                <div style={{ marginLeft: 'auto', width: 36, height: 13, background: '#F3F4F6', borderRadius: 4 }} />
+              </div>
+            ))}
+          </div>
+        )}
+
         {/* Timeline */}
-        <div style={{ padding: '8px 20px 20px' }}>
+        {timeline && <div style={{ padding: '8px 20px 20px' }}>
           {timeline.stops.map((stop, i) => {
             const isPassed = stop.status === 'passed';
             const isNext = stop.status === 'next';
@@ -165,32 +188,32 @@ export default function TripTimelinePanel({ timeline, onClose }: TripTimelinePan
                     >
                       {stop.stopName}
                     </span>
-                    <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                      {stop.delayMinutes > 0 ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2, flexShrink: 0 }}>
+                      {isPassed ? (
+                        <span style={{ fontSize: 12, color: timeColor }}>{stop.estimatedTime}</span>
+                      ) : (
                         <>
                           <span
                             style={{
-                              fontSize: 12,
-                              color: timeColor,
-                              textDecoration: 'line-through',
+                              fontSize: 13,
+                              fontWeight: 600,
+                              color: stop.minutesUntil <= 2 ? '#DC2626' : isNext ? '#16A34A' : '#111827',
                             }}
                           >
-                            {stop.scheduledTime}
+                            {stop.minutesUntil === 0 ? 'сега' : `${stop.minutesUntil} мин`}
                           </span>
                           <span
                             style={{
-                              fontSize: 12,
-                              color: stop.delayMinutes > 5 ? '#DC2626' : '#F59E0B',
-                              fontWeight: 600,
+                              fontSize: 11,
+                              color: stop.delayMinutes > 0 ? (stop.delayMinutes > 5 ? '#DC2626' : '#F59E0B') : '#9CA3AF',
                             }}
                           >
+                            {stop.delayMinutes > 0 && (
+                              <span style={{ textDecoration: 'line-through', marginRight: 3 }}>{stop.scheduledTime}</span>
+                            )}
                             {stop.estimatedTime}
                           </span>
                         </>
-                      ) : (
-                        <span style={{ fontSize: 12, color: timeColor }}>
-                          {stop.estimatedTime}
-                        </span>
                       )}
                     </div>
                   </div>
@@ -207,8 +230,7 @@ export default function TripTimelinePanel({ timeline, onClose }: TripTimelinePan
                           padding: '1px 6px',
                         }}
                       >
-                        следваща
-                        {stop.delayMinutes > 0 && ` · +${stop.delayMinutes}мин`}
+                        следваща спирка
                       </span>
                     </div>
                   )}
@@ -219,7 +241,7 @@ export default function TripTimelinePanel({ timeline, onClose }: TripTimelinePan
               </div>
             );
           })}
-        </div>
+        </div>}
       </div>
     </div>
   );
