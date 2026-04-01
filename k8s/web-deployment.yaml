@@ -13,8 +13,10 @@ spec:
       labels:
         app: web
     spec:
+      imagePullSecrets:
+        - name: ghcr-secret
       containers:
         - name: web
-          image: transitwatch-web:latest
+          image: ghcr.io/tues-2026-pbl-11-klas/transitwatch-web:latest
           ports:
             - containerPort: 80
