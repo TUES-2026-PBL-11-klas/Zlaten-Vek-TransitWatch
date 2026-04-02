@@ -31,7 +31,12 @@ describe('ReportService', () => {
 
   describe('createReport', () => {
     const userId = 'user-uuid-1';
-    const fakeReport = { id: 'r1', userId, credibilityScore: 5, status: 'active' } as Report;
+    const fakeReport = {
+      id: 'r1',
+      userId,
+      credibilityScore: 5,
+      status: 'active',
+    } as Report;
 
     it.each([
       [ReportCategory.VEHICLE_ISSUE, 60],

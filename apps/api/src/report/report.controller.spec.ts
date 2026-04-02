@@ -43,7 +43,10 @@ describe('ReportController', () => {
       mockService.getReportById.mockResolvedValue(report);
 
       await expect(
-        controller.deleteReport({ user: { userId: 'intruder-id' } } as any, 'r1'),
+        controller.deleteReport(
+          { user: { userId: 'intruder-id' } } as any,
+          'r1',
+        ),
       ).rejects.toThrow(ForbiddenException);
 
       expect(mockService.deleteReport).not.toHaveBeenCalled();
@@ -53,7 +56,10 @@ describe('ReportController', () => {
       mockService.getReportById.mockResolvedValue(null);
 
       await expect(
-        controller.deleteReport({ user: { userId: 'user-1' } } as any, 'missing'),
+        controller.deleteReport(
+          { user: { userId: 'user-1' } } as any,
+          'missing',
+        ),
       ).rejects.toThrow(NotFoundException);
     });
   });
