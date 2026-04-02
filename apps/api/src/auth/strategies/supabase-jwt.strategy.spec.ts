@@ -42,7 +42,10 @@ describe('SupabaseJwtStrategy', () => {
 
       const result = strategy.validate(payload);
 
-      expect(result).toEqual({ userId: 'user-uuid-1', email: 'rider@sofia.bg' });
+      expect(result).toEqual({
+        userId: 'user-uuid-1',
+        email: 'rider@sofia.bg',
+      });
     });
 
     it('throws UnauthorizedException when sub is missing', () => {

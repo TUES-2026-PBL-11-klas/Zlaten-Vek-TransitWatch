@@ -39,7 +39,10 @@ describe('AuthService', () => {
 
       const result = await service.getOrCreateUser('sub-123', 'test@sofia.bg');
 
-      expect(mockUserRepo.upsert).toHaveBeenCalledWith('sub-123', 'test@sofia.bg');
+      expect(mockUserRepo.upsert).toHaveBeenCalledWith(
+        'sub-123',
+        'test@sofia.bg',
+      );
       expect(result).toBe(fakeUser);
     });
 

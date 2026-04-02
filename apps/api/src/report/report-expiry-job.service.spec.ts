@@ -55,7 +55,9 @@ describe('ReportExpiryJobService', () => {
   });
 
   it('logs the count of expired reports', async () => {
-    const logSpy = jest.spyOn((service as any).logger, 'log').mockImplementation(() => {});
+    const logSpy = jest
+      .spyOn((service as any).logger, 'log')
+      .mockImplementation(() => {});
     mockRepo.findExpired.mockResolvedValue([
       { id: 'r3', status: 'active' } as Report,
     ]);

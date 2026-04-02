@@ -39,7 +39,9 @@ describe('UserRepository', () => {
       const result = await repo.findById('sub-abc');
 
       expect(result).toBe(fakeUser);
-      expect(mockPrismaUser.findUnique).toHaveBeenCalledWith({ where: { id: 'sub-abc' } });
+      expect(mockPrismaUser.findUnique).toHaveBeenCalledWith({
+        where: { id: 'sub-abc' },
+      });
     });
 
     it('returns null when user does not exist', async () => {
