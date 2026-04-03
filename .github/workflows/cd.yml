@@ -1,0 +1,137 @@
+name: CD
+
+on:
+  workflow_run:
+    workflows: [ CI ]
+    types: [ completed ]
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+
+    permissions:
+      contents: read
+      packages: write
+
+    env:
+      API_IMAGE: ghcr.io/${{ github.repository_owner }}/transitwatch-api
+      WEB_IMAGE: ghcr.io/${{ github.repository_owner }}/transitwatch-web
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set lowercase image tags
+      run: |
+        OWNER=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')
+        echo "API_IMAGE=ghcr.io/${OWNER}/transitwatch-api" >> $GITHUB_ENV
+        echo "WEB_IMAGE=ghcr.io/${OWNER}/transitwatch-web" >> $GITHUB_ENV
+
+    - name: Log in to GHCR
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - uses: docker/setup-buildx-action@v3
+
+    - name: Build and push API image
+      uses: docker/build-push-action@v6
+      with:
+        context: .
+        file: apps/api/Dockerfile
+        push: true
+        tags: ${{ env.API_IMAGE }}:latest
+
+    - name: Build and push Web image
+      uses: docker/build-push-action@v6
+      with:
+        context: .
+        file: apps/web/Dockerfile
+        push: true
+        tags: ${{ env.WEB_IMAGE }}:latest
+        build-args: |
+          VITE_API_URL=${{ vars.VITE_API_URL }}
+          VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY=${{ secrets.VITE_SUPABASE_ANON_KEY }}
+
+    - uses: azure/setup-kubectl@v4
+
+    - name: Create GHCR pull secret
+      run: |
+        kubectl create secret docker-registry ghcr-secret \
+          --docker-server=ghcr.io \
+          --docker-username=${{ github.actor }} \
+          --docker-password=${{ secrets.GITHUB_TOKEN }} \
+          -n transitwatch \
+          --dry-run=client -o yaml | kubectl apply -f -
+
+    - name: Deploy
+      run: |
+        kubectl apply --validate=false -f k8s/
+        kubectl set image deployment/api api=${{ env.API_IMAGE }}:latest -n transitwatch
+        kubectl set image deployment/web web=${{ env.WEB_IMAGE }}:latest -n transitwatch
+        kubectl rollout status deployment/api -n transitwatch --timeout=120s
+        kubectl rollout status deployment/web -n transitwatch --timeout=120s
+
+    - name: Notify Discord (success)
+      if: success()
+      env:
+        DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        REPO: ${{ github.repository }}
+        RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        SHA: ${{ github.event.workflow_run.head_sha }}
+        ACTOR: ${{ github.event.workflow_run.actor.login }}
+      run: |
+        SHORT_SHA="${SHA::7}"
+        curl -s -X POST "$DISCORD_WEBHOOK" \
+          -H "Content-Type: application/json" \
+          --data-binary @- << EOF
+        {
+          "embeds": [{
+            "title": "Deployed to Production — ${REPO}",
+            "url": "${RUN_URL}",
+            "description": "API and Web images are live on the k3s cluster.",
+            "color": 5763719,
+            "fields": [
+              {"name": "Commit",       "value": "[\`${SHORT_SHA}\`](${GITHUB_SERVER_URL}/${REPO}/commit/${SHA})", "inline": true},
+              {"name": "Deployed by",  "value": "${ACTOR}",                                                       "inline": true},
+              {"name": "API image",    "value": "\`${{ env.API_IMAGE }}:latest\`",                                "inline": false},
+              {"name": "Web image",    "value": "\`${{ env.WEB_IMAGE }}:latest\`",                                "inline": false}
+            ],
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "footer": {"text": "TransitWatch CD"}
+          }]
+        }
+        EOF
+
+    - name: Notify Discord (failure)
+      if: failure()
+      env:
+        DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        REPO: ${{ github.repository }}
+        RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        SHA: ${{ github.event.workflow_run.head_sha }}
+        ACTOR: ${{ github.event.workflow_run.actor.login }}
+      run: |
+        SHORT_SHA="${SHA::7}"
+        curl -s -X POST "$DISCORD_WEBHOOK" \
+          -H "Content-Type: application/json" \
+          --data-binary @- << EOF
+        {
+          "embeds": [{
+            "title": "Deployment Failed — ${REPO}",
+            "url": "${RUN_URL}",
+            "description": "The production deployment did not complete. Check the logs for details.",
+            "color": 15548997,
+            "fields": [
+              {"name": "Commit",      "value": "[\`${SHORT_SHA}\`](${GITHUB_SERVER_URL}/${REPO}/commit/${SHA})", "inline": true},
+              {"name": "Triggered by","value": "${ACTOR}",                                                       "inline": true}
+            ],
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "footer": {"text": "TransitWatch CD"}
+          }]
+        }
+        EOF
