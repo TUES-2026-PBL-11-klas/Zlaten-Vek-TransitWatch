@@ -19,21 +19,28 @@ model User {
 
 model Line {
   id        String     @id @default(uuid())
+  gtfsId    String?    @unique @map("gtfs_id")
   name      String
   type      String // bus | tram | metro | trolley
+  color     String?    // route color from GTFS (hex without #)
   lineStops LineStop[]
   reports   Report[]
+  shape     Shape?
 
   @@map("lines")
 }
 
 model Stop {
   id        String     @id @default(uuid())
+  gtfsId    String?    @unique @map("gtfs_id")
+  stopCode  String?    @map("stop_code")
   name      String
   lat       Float
   lng       Float
   lineStops LineStop[]
 
+  @@index([lat, lng])
+  @@index([stopCode])
   @@map("stops")
 }
 
@@ -45,7 +52,7 @@ model LineStop {
   line      Line   @relation(fields: [lineId], references: [id], onDelete: Cascade)
   stop      Stop   @relation(fields: [stopId], references: [id], onDelete: Cascade)
 
-  @@unique([lineId, stopId])
+  @@unique([lineId, stopId, stopOrder])
   @@index([lineId])
   @@index([stopId])
   @@map("line_stops")
@@ -78,4 +85,13 @@ model Vote {
 
   @@unique([reportId, userId])
   @@map("votes")
+}
+
+model Shape {
+  id          String @id @default(uuid())
+  lineId      String @unique @map("line_id")
+  coordinates Json // Array of [lat, lng] coordinate pairs, simplified with RDP
+  line        Line   @relation(fields: [lineId], references: [id], onDelete: Cascade)
+
+  @@map("shapes")
 }

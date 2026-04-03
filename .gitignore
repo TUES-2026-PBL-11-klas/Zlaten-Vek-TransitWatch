@@ -12,6 +12,8 @@ out/
 
 # Environment
 .env
+docker-compose.runner.yml
+kubeconfig-runner
 .env.local
 .env.*.local
 .env.production
