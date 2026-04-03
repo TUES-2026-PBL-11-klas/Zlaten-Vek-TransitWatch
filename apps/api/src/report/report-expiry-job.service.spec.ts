@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ReportExpiryJobService } from './report-expiry-job.service';
-import { IReportRepository } from './interfaces/report-repository.interface';
+import { IReportRepository } from './report-repository.interface';
 import type { Report } from '@prisma/client';
 
 const mockRepo: jest.Mocked<IReportRepository> = {
@@ -44,14 +44,26 @@ describe('ReportExpiryJobService', () => {
     expect(mockRepo.markExpired).toHaveBeenCalledWith('r2');
   });
 
-  it('does not touch already-expired or hidden reports', async () => {
-    // findExpired only returns active reports with expiresAt < now,
-    // so an empty result means no eligible reports exist
+  it('does nothing when no expired reports are found', async () => {
     mockRepo.findExpired.mockResolvedValue([]);
 
     await service.handleExpiry();
 
     expect(mockRepo.markExpired).not.toHaveBeenCalled();
+  });
+
+  it('stops processing remaining reports if markExpired throws', async () => {
+    const expired = [
+      { id: 'r1', status: 'active' },
+      { id: 'r2', status: 'active' },
+    ] as Report[];
+    mockRepo.findExpired.mockResolvedValue(expired);
+    mockRepo.markExpired.mockRejectedValueOnce(new Error('DB error'));
+
+    await expect(service.handleExpiry()).rejects.toThrow('DB error');
+
+    expect(mockRepo.markExpired).toHaveBeenCalledTimes(1);
+    expect(mockRepo.markExpired).toHaveBeenCalledWith('r1');
   });
 
   it('logs the count of expired reports', async () => {
