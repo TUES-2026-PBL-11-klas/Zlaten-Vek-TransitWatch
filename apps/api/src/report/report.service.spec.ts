@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ReportService } from './report.service';
-import { IReportRepository } from './interfaces/report-repository.interface';
+import { IReportRepository } from './report-repository.interface';
 import { ReportCategory } from '../../../../packages/shared/src/enums/report-category.enum';
 import type { Report } from '@prisma/client';
 
@@ -37,6 +37,16 @@ describe('ReportService', () => {
       credibilityScore: 5,
       status: 'active',
     } as Report;
+    const NOW = new Date('2026-04-03T12:00:00Z');
+
+    beforeEach(() => {
+      jest.useFakeTimers();
+      jest.setSystemTime(NOW);
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
+    });
 
     it.each([
       [ReportCategory.VEHICLE_ISSUE, 60],
@@ -48,14 +58,12 @@ describe('ReportService', () => {
       'sets correct expires_at for category %s (%i min)',
       async (category, expectedMinutes) => {
         mockRepo.save.mockResolvedValue(fakeReport);
-        const before = new Date();
 
         await service.createReport(userId, { lineId: 'line-1', category });
 
         const savedData = mockRepo.save.mock.calls[0][0];
-        const diffMs = savedData.expiresAt.getTime() - before.getTime();
-        const diffMinutes = Math.round(diffMs / 60_000);
-        expect(diffMinutes).toBe(expectedMinutes);
+        const expected = new Date(NOW.getTime() + expectedMinutes * 60_000);
+        expect(savedData.expiresAt).toEqual(expected);
       },
     );
 
@@ -72,7 +80,7 @@ describe('ReportService', () => {
       );
     });
 
-    it('passes userId, lineId and description to the repository', async () => {
+    it('passes userId, lineId, category and description to the repository', async () => {
       mockRepo.save.mockResolvedValue(fakeReport);
 
       await service.createReport(userId, {
@@ -85,7 +93,26 @@ describe('ReportService', () => {
         expect.objectContaining({
           userId,
           lineId: 'line-42',
+          category: ReportCategory.TRAFFIC,
           description: 'Big delay',
+        }),
+      );
+    });
+
+    it('works when optional description is omitted', async () => {
+      mockRepo.save.mockResolvedValue(fakeReport);
+
+      await service.createReport(userId, {
+        lineId: 'line-1',
+        category: ReportCategory.INSPECTORS,
+      });
+
+      expect(mockRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId,
+          lineId: 'line-1',
+          category: ReportCategory.INSPECTORS,
+          description: undefined,
         }),
       );
     });
@@ -142,6 +169,16 @@ describe('ReportService', () => {
       await service.deleteReport('r5');
 
       expect(mockRepo.delete).toHaveBeenCalledWith('r5');
+    });
+  });
+
+  describe('expireReport', () => {
+    it('delegates markExpired to repository', async () => {
+      mockRepo.markExpired.mockResolvedValue(undefined);
+
+      await service.expireReport('r6');
+
+      expect(mockRepo.markExpired).toHaveBeenCalledWith('r6');
     });
   });
 });

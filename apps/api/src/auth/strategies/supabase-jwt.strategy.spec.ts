@@ -3,25 +3,28 @@ import { SupabaseJwtStrategy } from './supabase-jwt.strategy';
 
 describe('SupabaseJwtStrategy', () => {
   const SECRET = 'test-secret-that-is-at-least-32-characters';
+  let originalSecret: string | undefined;
 
-  beforeAll(() => {
+  beforeEach(() => {
+    originalSecret = process.env.SUPABASE_JWT_SECRET;
     process.env.SUPABASE_JWT_SECRET = SECRET;
   });
 
-  afterAll(() => {
-    delete process.env.SUPABASE_JWT_SECRET;
+  afterEach(() => {
+    if (originalSecret !== undefined) {
+      process.env.SUPABASE_JWT_SECRET = originalSecret;
+    } else {
+      delete process.env.SUPABASE_JWT_SECRET;
+    }
   });
 
   describe('constructor', () => {
     it('throws when SUPABASE_JWT_SECRET is not set', () => {
-      const original = process.env.SUPABASE_JWT_SECRET;
       delete process.env.SUPABASE_JWT_SECRET;
 
       expect(() => new SupabaseJwtStrategy()).toThrow(
         'SUPABASE_JWT_SECRET environment variable is not set',
       );
-
-      process.env.SUPABASE_JWT_SECRET = original;
     });
   });
 
@@ -57,6 +60,22 @@ describe('SupabaseJwtStrategy', () => {
       };
 
       expect(() => strategy.validate(payload)).toThrow(UnauthorizedException);
+    });
+
+    it('returns undefined email when email is not in payload', () => {
+      const payload = {
+        sub: 'user-uuid-1',
+        email: undefined as unknown as string,
+        aud: 'authenticated',
+        exp: 9_999_999_999,
+      };
+
+      const result = strategy.validate(payload);
+
+      expect(result).toEqual({
+        userId: 'user-uuid-1',
+        email: undefined,
+      });
     });
   });
 });

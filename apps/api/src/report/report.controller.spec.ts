@@ -94,6 +94,26 @@ describe('ReportController', () => {
     });
   });
 
+  describe('createReport', () => {
+    it('passes userId from token and dto to service', async () => {
+      const dto = {
+        lineId: 'line-1',
+        category: 'VEHICLE_ISSUE',
+        description: 'Broken AC',
+      };
+      const created = { id: 'r-new', userId: 'user-1', ...dto } as Report;
+      mockService.createReport.mockResolvedValue(created);
+
+      const result = await controller.createReport(
+        { user: { userId: 'user-1' } } as any,
+        dto as any,
+      );
+
+      expect(result).toBe(created);
+      expect(mockService.createReport).toHaveBeenCalledWith('user-1', dto);
+    });
+  });
+
   describe('getReportsByLine', () => {
     it('passes lineId to service', async () => {
       const reports = [{ id: 'r4', lineId: 'line-5' }] as Report[];
