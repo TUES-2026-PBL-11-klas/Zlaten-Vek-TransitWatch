@@ -18,8 +18,10 @@ export class ReportService {
     return this.reportRepository.save({
       userId,
       lineId: dto.lineId,
+      vehicleId: dto.vehicleId,
       category: dto.category,
       description: dto.description,
+      photoUrl: dto.photoUrl,
       credibilityScore: 5,
       expiresAt,
     });
@@ -35,6 +37,10 @@ export class ReportService {
 
   async getReportById(id: string): Promise<Report | null> {
     return this.reportRepository.findById(id);
+  }
+
+  async getReportsByUser(userId: string): Promise<Report[]> {
+    return this.reportRepository.findByUserId(userId);
   }
 
   async deleteReport(id: string): Promise<void> {

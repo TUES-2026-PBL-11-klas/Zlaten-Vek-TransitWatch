@@ -12,8 +12,13 @@ import RouteOverlay from '../components/map/RouteOverlay';
 import MapController from '../components/map/MapController';
 import VehiclePopup from '../components/map/VehiclePopup';
 import StopPopup from '../components/map/StopPopup';
+import UserLocationMarker from '../components/map/UserLocationMarker';
+import LocateMeButton from '../components/map/LocateMeButton';
+import ReportFAB from '../components/map/ReportFAB';
+import ReportFlow from '../components/report/ReportFlow';
 import TripTimelinePanel from '../components/panels/TripTimelinePanel';
 import { useTripTimeline } from '../hooks/useTripTimeline';
+import { useUserLocation } from '../hooks/useUserLocation';
 import type { VehiclePosition, TransitStop } from '../types/transit';
 
 // Fix Leaflet's broken default icon paths when bundled with Vite
@@ -49,6 +54,7 @@ interface MapLayersProps {
   selectedStop: SelectedStop | null;
   tripTimeline: ReturnType<typeof useTripTimeline>;
   onFollowChange: (following: boolean) => void;
+  userLocation: { lat: number; lng: number; accuracy: number } | null;
 }
 
 function MapLayers({
@@ -60,6 +66,7 @@ function MapLayers({
   selectedStop,
   tripTimeline,
   onFollowChange,
+  userLocation,
 }: MapLayersProps) {
   return (
     <>
@@ -71,6 +78,9 @@ function MapLayers({
           shape={tripTimeline.shape}
         />
       )}
+
+      {userLocation && <UserLocationMarker location={userLocation} />}
+      <LocateMeButton location={userLocation} />
 
       <StopMarkers
         onStopSelect={onStopSelect}
@@ -101,6 +111,8 @@ export default function MapPage() {
   const [selectedVehicle, setSelectedVehicle] = useState<VehiclePosition | null>(null);
   const [isFollowing, setIsFollowing] = useState(false);
   const [user, setUser] = useState<User | null>(null);
+  const [showReportFlow, setShowReportFlow] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
   const navigate = useNavigate();
 
   const handleFollowChange = useCallback((following: boolean) => {
@@ -108,6 +120,18 @@ export default function MapPage() {
   }, []);
 
   const tripTimeline = useTripTimeline(selectedVehicle?.vehicleId ?? null);
+  const { location: userLocation, error: locationError } = useUserLocation();
+
+  // Show toast on location error
+  useEffect(() => {
+    if (!locationError) return;
+    const showTimer = setTimeout(() => setToast(locationError), 0);
+    const hideTimer = setTimeout(() => setToast(null), 4000);
+    return () => {
+      clearTimeout(showTimer);
+      clearTimeout(hideTimer);
+    };
+  }, [locationError]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setUser(data.session?.user ?? null));
@@ -195,6 +219,7 @@ export default function MapPage() {
             selectedStop={selectedStop}
             tripTimeline={tripTimeline}
             onFollowChange={handleFollowChange}
+            userLocation={userLocation}
           />
         </MapContainer>
 
@@ -216,6 +241,23 @@ export default function MapPage() {
             onClose={handleDeselect}
           />
         )}
+
+        {/* Report FAB — visible when authenticated and location available */}
+        {user && userLocation && !showReportFlow && (
+          <ReportFAB onClick={() => setShowReportFlow(true)} />
+        )}
+
+        {/* Report flow bottom sheet */}
+        {showReportFlow && userLocation && (
+          <ReportFlow
+            userLocation={userLocation}
+            onClose={() => setShowReportFlow(false)}
+            onSuccess={() => setShowReportFlow(false)}
+          />
+        )}
+
+        {/* Toast notification */}
+        {toast && <div className="map-toast">{toast}</div>}
       </div>
     </div>
   );

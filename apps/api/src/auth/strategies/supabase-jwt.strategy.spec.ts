@@ -1,12 +1,22 @@
 import { UnauthorizedException } from '@nestjs/common';
+
+// Mock jwks-rsa before importing the strategy (ESM module Jest can't parse)
+jest.mock('jwks-rsa', () => ({
+  passportJwtSecret: jest.fn(() => () => 'mock-secret'),
+}));
+
 import { SupabaseJwtStrategy } from './supabase-jwt.strategy';
 
 describe('SupabaseJwtStrategy', () => {
   const SECRET = 'test-secret-that-is-at-least-32-characters';
   let originalSecret: string | undefined;
+  let originalUrl: string | undefined;
 
   beforeEach(() => {
     originalSecret = process.env.SUPABASE_JWT_SECRET;
+    originalUrl = process.env.SUPABASE_URL;
+    // Use HS256 fallback path for tests (no JWKS needed)
+    delete process.env.SUPABASE_URL;
     process.env.SUPABASE_JWT_SECRET = SECRET;
   });
 
@@ -16,14 +26,20 @@ describe('SupabaseJwtStrategy', () => {
     } else {
       delete process.env.SUPABASE_JWT_SECRET;
     }
+    if (originalUrl !== undefined) {
+      process.env.SUPABASE_URL = originalUrl;
+    } else {
+      delete process.env.SUPABASE_URL;
+    }
   });
 
   describe('constructor', () => {
-    it('throws when SUPABASE_JWT_SECRET is not set', () => {
+    it('throws when neither SUPABASE_URL nor SUPABASE_JWT_SECRET is set', () => {
       delete process.env.SUPABASE_JWT_SECRET;
+      delete process.env.SUPABASE_URL;
 
       expect(() => new SupabaseJwtStrategy()).toThrow(
-        'SUPABASE_JWT_SECRET environment variable is not set',
+        'Set SUPABASE_URL or SUPABASE_JWT_SECRET environment variable',
       );
     });
   });

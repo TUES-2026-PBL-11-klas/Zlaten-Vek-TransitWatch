@@ -3,6 +3,7 @@ import L from 'leaflet';
 import { Marker, useMap, useMapEvents } from 'react-leaflet';
 import { useVehicles } from '../../hooks/useVehicles';
 import { useLines } from '../../hooks/useLines';
+import { useActiveReports } from '../../hooks/useActiveReports';
 import { TRANSIT_COLORS } from '../../types/transit';
 import type { VehiclePosition, TransitLine } from '../../types/transit';
 
@@ -27,6 +28,7 @@ function buildVehicleIcon(
   vehicle: VehiclePosition,
   bearing: number | null,
   size: 'sm' | 'md' | 'lg',
+  hasReports = false,
 ): L.DivIcon {
   const type = line?.type ?? (vehicle.routeType as TransitLine['type']) ?? undefined;
   const color = line?.color ? `#${line.color}` : (TRANSIT_COLORS[type ?? ''] ?? '#6B7280');
@@ -47,14 +49,19 @@ function buildVehicleIcon(
       ? `<div style="width:0;height:0;border-left:${arrowSize}px solid transparent;border-right:${arrowSize}px solid transparent;border-bottom:${arrowSize + 2}px solid ${color};position:absolute;top:-${arrowSize + 4}px;left:50%;transform:translateX(-50%) rotate(${bearing}deg);filter:drop-shadow(0 1px 2px rgba(0,0,0,.2));"></div>`
       : '';
 
+  const reportDotHtml = hasReports
+    ? `<div style="position:absolute;top:-3px;right:-3px;width:8px;height:8px;border-radius:50%;background:#DC2626;border:1.5px solid #fff;animation:pulse-ring-red 2s infinite;"></div>`
+    : '';
+
   return L.divIcon({
     className: 'vehicle-icon',
     html: `
       <div style="position:relative;display:flex;flex-direction:column;align-items:center;">
         ${bearingHtml}
-        <div style="display:flex;align-items:center;justify-content:center;padding:${cfg.py}px ${cfg.px}px;border-radius:${cfg.radius}px;border:${cfg.border}px solid #fff;box-shadow:${cfg.shadow} rgba(15,23,42,0.25);background:${color};white-space:nowrap;">
+        <div style="position:relative;display:flex;align-items:center;justify-content:center;padding:${cfg.py}px ${cfg.px}px;border-radius:${cfg.radius}px;border:${cfg.border}px solid #fff;box-shadow:${cfg.shadow} rgba(15,23,42,0.25);background:${color};white-space:nowrap;">
           ${typeSvg}
           <span style="font-family:Inter,system-ui,sans-serif;font-size:${cfg.fontSize}px;font-weight:700;color:#fff;line-height:1;">${name}</span>
+          ${reportDotHtml}
         </div>
       </div>
     `,
@@ -70,15 +77,17 @@ const VehicleMarkerItem = memo(function VehicleMarkerItem({
   line,
   isSelected,
   size,
+  hasReports,
   onVehicleSelect,
 }: {
   vehicle: VehiclePosition;
   line: TransitLine | undefined;
   isSelected: boolean;
   size: 'sm' | 'md' | 'lg';
+  hasReports: boolean;
   onVehicleSelect: (v: VehiclePosition) => void;
 }) {
-  const icon = buildVehicleIcon(line, vehicle, vehicle.bearing, isSelected ? 'lg' : size);
+  const icon = buildVehicleIcon(line, vehicle, vehicle.bearing, isSelected ? 'lg' : size, hasReports);
 
   return (
     <Marker
@@ -109,6 +118,7 @@ export default function VehicleMarkers({ onVehicleSelect, selectedVehicleId }: V
 
   const { vehicles } = useVehicles();
   const { linesByGtfsId } = useLines();
+  const { reportsByVehicleId } = useActiveReports();
 
   // Hidden at very low zoom
   if (zoom < 10) return null;
@@ -126,6 +136,7 @@ export default function VehicleMarkers({ onVehicleSelect, selectedVehicleId }: V
     <>
       {visibleVehicles.map((vehicle) => {
         const line = linesByGtfsId.get(vehicle.routeGtfsId);
+        const hasReports = reportsByVehicleId.has(vehicle.vehicleId);
         return (
           <VehicleMarkerItem
             key={vehicle.vehicleId}
@@ -133,6 +144,7 @@ export default function VehicleMarkers({ onVehicleSelect, selectedVehicleId }: V
             line={line}
             isSelected={vehicle.vehicleId === selectedVehicleId}
             size={size}
+            hasReports={hasReports}
             onVehicleSelect={onVehicleSelect}
           />
         );

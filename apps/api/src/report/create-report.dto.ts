@@ -11,6 +11,10 @@ export class CreateReportDto {
   @IsUUID()
   lineId: string;
 
+  @IsString()
+  @IsOptional()
+  vehicleId?: string;
+
   @IsEnum(ReportCategory)
   category: ReportCategory;
 
@@ -18,4 +22,8 @@ export class CreateReportDto {
   @MaxLength(140)
   @IsOptional()
   description?: string;
+
+  @IsString()
+  @IsOptional()
+  photoUrl?: string;
 }

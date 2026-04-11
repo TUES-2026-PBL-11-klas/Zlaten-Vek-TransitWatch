@@ -510,8 +510,14 @@ export class GtfsStaticService implements OnModuleInit {
     }
 
     // Cache line and stop lookups to avoid repeated DB queries per tuple
-    const lineCache = new Map<string, Awaited<ReturnType<typeof this.transitRepository.findLineByGtfsId>>>();
-    const stopCache = new Map<string, Awaited<ReturnType<typeof this.transitRepository.findStopByGtfsId>>>();
+    const lineCache = new Map<
+      string,
+      Awaited<ReturnType<typeof this.transitRepository.findLineByGtfsId>>
+    >();
+    const stopCache = new Map<
+      string,
+      Awaited<ReturnType<typeof this.transitRepository.findStopByGtfsId>>
+    >();
 
     let imported = 0;
     for (const data of lineStopSet.values()) {
