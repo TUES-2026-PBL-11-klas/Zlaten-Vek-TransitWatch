@@ -1,6 +1,7 @@
 import { Popup } from 'react-leaflet';
 import { TRANSIT_COLORS } from '../../types/transit';
 import { useLines } from '../../hooks/useLines';
+import { useActiveReports } from '../../hooks/useActiveReports';
 import type { VehiclePosition, TripTimeline } from '../../types/transit';
 
 const TYPE_LABELS: Record<string, string> = {
@@ -17,9 +18,34 @@ interface VehiclePopupProps {
   onClose: () => void;
 }
 
+const CATEGORY_ICONS: Record<string, string> = {
+  VEHICLE_ISSUE: '\u{1F6A8}',
+  TRAFFIC: '\u{23F1}\u{FE0F}',
+  INSPECTORS: '\u{1F3AB}',
+  SAFETY: '\u{26A0}\u{FE0F}',
+  OTHER: '\u{2139}\u{FE0F}',
+};
+
+const CATEGORY_LABELS: Record<string, string> = {
+  VEHICLE_ISSUE: 'Повреда',
+  TRAFFIC: 'Трафик',
+  INSPECTORS: 'Контрольори',
+  SAFETY: 'Безопасност',
+  OTHER: 'Друго',
+};
+
+function timeRemaining(expiresAt: string): string {
+  const diff = new Date(expiresAt).getTime() - Date.now();
+  if (diff <= 0) return 'изтекъл';
+  const mins = Math.ceil(diff / 60_000);
+  return `${mins} мин`;
+}
+
 export default function VehiclePopup({ vehicle, timeline, loading, onClose }: VehiclePopupProps) {
   const { linesByGtfsId } = useLines();
+  const { reportsByVehicleId } = useActiveReports();
   const line = linesByGtfsId.get(vehicle.routeGtfsId);
+  const vehicleReports = reportsByVehicleId.get(vehicle.vehicleId) ?? [];
 
   const lineColor = timeline?.lineColor
     ? `#${timeline.lineColor}`
@@ -162,6 +188,83 @@ export default function VehiclePopup({ vehicle, timeline, loading, onClose }: Ve
             </div>
           )}
         </div>
+
+        {/* Active reports for this line */}
+        {vehicleReports.length > 0 && (
+          <div style={{ borderTop: '1px solid #F3F4F6' }}>
+            <div style={{
+              padding: '10px 16px 6px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            }}>
+              <span style={{ fontSize: 11, fontWeight: 600, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Доклади
+              </span>
+              <span style={{
+                fontSize: 10,
+                fontWeight: 700,
+                color: '#DC2626',
+                background: '#FEF2F2',
+                padding: '2px 7px',
+                borderRadius: 10,
+              }}>
+                {vehicleReports.length}
+              </span>
+            </div>
+            <div className="popup-scroll" style={{ padding: '0 16px 12px' }}>
+              {vehicleReports.map((report) => (
+                <div
+                  key={report.id}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: 8,
+                    padding: '8px 0',
+                    borderBottom: '1px solid #F9FAFB',
+                  }}
+                >
+                  <span style={{ fontSize: 14, flexShrink: 0, marginTop: 1 }}>
+                    {CATEGORY_ICONS[report.category] ?? '\u{2139}\u{FE0F}'}
+                  </span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: '#374151' }}>
+                      {CATEGORY_LABELS[report.category] ?? report.category}
+                    </div>
+                    {report.description && (
+                      <div style={{
+                        fontSize: 11,
+                        color: '#6B7280',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        marginTop: 1,
+                      }}>
+                        {report.description}
+                      </div>
+                    )}
+                    <div style={{ fontSize: 10, color: '#9CA3AF', marginTop: 2 }}>
+                      {timeRemaining(report.expiresAt)}
+                    </div>
+                  </div>
+                  {report.photoUrl && (
+                    <img
+                      src={report.photoUrl}
+                      alt=""
+                      style={{
+                        width: 32,
+                        height: 32,
+                        objectFit: 'cover',
+                        borderRadius: 6,
+                        flexShrink: 0,
+                      }}
+                    />
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </Popup>
   );

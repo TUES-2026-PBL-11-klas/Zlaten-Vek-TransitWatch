@@ -6,6 +6,7 @@ import type {
   ArrivalsResponse,
   TripTimeline,
   ShapeData,
+  ActiveReport,
 } from '../types/transit';
 
 export const transitApi = {
@@ -54,4 +55,21 @@ export const transitApi = {
     api
       .get<TripTimeline>(`/transit/vehicles/${vehicleId}/trip`)
       .then((r) => r.data),
+
+  getActiveReports: () =>
+    api.get<ActiveReport[]>('/reports/active').then((r) => r.data),
+
+  getMyReports: () =>
+    api.get<ActiveReport[]>('/reports/mine').then((r) => r.data),
+
+  createReport: (data: {
+    lineId: string;
+    vehicleId?: string;
+    category: string;
+    description?: string;
+    photoUrl?: string;
+  }) => api.post<ActiveReport>('/reports', data).then((r) => r.data),
+
+  deleteReport: (id: string) =>
+    api.delete(`/reports/${id}`),
 };

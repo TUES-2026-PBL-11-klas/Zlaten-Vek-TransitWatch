@@ -4,6 +4,7 @@ import { ArrowLeft } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import IdentityCard from '../components/profile/IdentityCard';
 import QuickSettings from '../components/profile/QuickSettings';
+import MyReportsCard from '../components/profile/MyReportsCard';
 
 export default function ProfilePage() {
   const navigate = useNavigate();
@@ -42,6 +43,7 @@ export default function ProfilePage() {
           <div style={styles.grid}>
             <IdentityCard />
             <QuickSettings />
+            <MyReportsCard />
           </div>
         </div>
       </main>

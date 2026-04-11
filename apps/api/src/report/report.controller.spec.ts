@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { ReportController } from './report.controller';
 import { ReportService } from './report.service';
+import { AuthService } from '../auth/auth.service';
 import type { Report } from '@prisma/client';
 
 const mockService = {
@@ -12,6 +13,10 @@ const mockService = {
   getReportsByLine: jest.fn(),
 };
 
+const mockAuthService = {
+  getOrCreateUser: jest.fn(),
+};
+
 describe('ReportController', () => {
   let controller: ReportController;
 
@@ -19,7 +24,10 @@ describe('ReportController', () => {
     jest.clearAllMocks();
     const module: TestingModule = await Test.createTestingModule({
       controllers: [ReportController],
-      providers: [{ provide: ReportService, useValue: mockService }],
+      providers: [
+        { provide: ReportService, useValue: mockService },
+        { provide: AuthService, useValue: mockAuthService },
+      ],
     }).compile();
 
     controller = module.get<ReportController>(ReportController);
@@ -102,14 +110,22 @@ describe('ReportController', () => {
         description: 'Broken AC',
       };
       const created = { id: 'r-new', userId: 'user-1', ...dto } as Report;
+      mockAuthService.getOrCreateUser.mockResolvedValue({
+        id: 'user-1',
+        email: 'test@test.com',
+      });
       mockService.createReport.mockResolvedValue(created);
 
       const result = await controller.createReport(
-        { user: { userId: 'user-1' } } as any,
+        { user: { userId: 'user-1', email: 'test@test.com' } } as any,
         dto as any,
       );
 
       expect(result).toBe(created);
+      expect(mockAuthService.getOrCreateUser).toHaveBeenCalledWith(
+        'user-1',
+        'test@test.com',
+      );
       expect(mockService.createReport).toHaveBeenCalledWith('user-1', dto);
     });
   });

@@ -83,6 +83,21 @@ export interface ShapeData {
   coordinates: [number, number][];
 }
 
+export interface ActiveReport {
+  id: string;
+  userId: string;
+  lineId: string;
+  vehicleId: string | null;
+  category: string;
+  description: string | null;
+  photoUrl: string | null;
+  credibilityScore: number;
+  expiresAt: string;
+  status: string;
+  createdAt: string;
+  line?: TransitLine;
+}
+
 export const TRANSIT_COLORS: Record<string, string> = {
   bus: '#DC2626',
   tram: '#F59E0B',

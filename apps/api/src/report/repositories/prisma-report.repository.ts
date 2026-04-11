@@ -26,12 +26,22 @@ export class PrismaReportRepository implements IReportRepository {
   save(data: {
     userId: string;
     lineId: string;
+    vehicleId?: string;
     category: string;
     description?: string;
+    photoUrl?: string;
     credibilityScore: number;
     expiresAt: Date;
   }): Promise<Report> {
     return this.prisma.report.create({ data });
+  }
+
+  findByUserId(userId: string): Promise<Report[]> {
+    return this.prisma.report.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      include: { line: true },
+    });
   }
 
   findExpired(): Promise<Report[]> {

@@ -11,6 +11,7 @@ const mockRepo: jest.Mocked<IReportRepository> = {
   findById: jest.fn(),
   findExpired: jest.fn(),
   markExpired: jest.fn(),
+  findByUserId: jest.fn(),
   delete: jest.fn(),
 };
 

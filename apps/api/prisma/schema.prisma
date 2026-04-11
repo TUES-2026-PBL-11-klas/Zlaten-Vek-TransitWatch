@@ -62,8 +62,10 @@ model Report {
   id               String   @id @default(uuid())
   userId           String   @map("user_id")
   lineId           String   @map("line_id")
+  vehicleId        String?  @map("vehicle_id")
   category         String
   description      String?
+  photoUrl         String?  @map("photo_url")
   credibilityScore Int      @default(5) @map("credibility_score")
   expiresAt        DateTime @map("expires_at")
   status           String   @default("active")

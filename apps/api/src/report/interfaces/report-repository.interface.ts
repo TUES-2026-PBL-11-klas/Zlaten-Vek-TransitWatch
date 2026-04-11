@@ -8,11 +8,14 @@ export interface IReportRepository {
   save(data: {
     userId: string;
     lineId: string;
+    vehicleId?: string;
     category: string;
     description?: string;
+    photoUrl?: string;
     credibilityScore: number;
     expiresAt: Date;
   }): Promise<Report>;
+  findByUserId(userId: string): Promise<Report[]>;
   markExpired(id: string): Promise<void>;
   delete(id: string): Promise<void>;
 }
