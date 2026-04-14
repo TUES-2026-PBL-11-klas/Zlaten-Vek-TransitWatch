@@ -37,12 +37,6 @@ spec:
                   name: transitwatch-secrets
                   key: SUPABASE_JWT_SECRET
             - name: PORT
-              valueFrom:
-                configMapKeyRef:
-                  name: transitwatch-config
-                  key: PORT
+              value: "3000"
             - name: CORS_ORIGIN
-              valueFrom:
-                configMapKeyRef:
-                  name: transitwatch-config
-                  key: CORS_ORIGIN
+              value: "http://localhost"
