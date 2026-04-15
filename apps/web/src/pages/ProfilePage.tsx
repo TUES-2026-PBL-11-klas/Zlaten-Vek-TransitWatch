@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase';
 import IdentityCard from '../components/profile/IdentityCard';
 import QuickSettings from '../components/profile/QuickSettings';
 import MyReportsCard from '../components/profile/MyReportsCard';
+import CredibilityCard from '../components/profile/CredibilityCard';
 
 export default function ProfilePage() {
   const navigate = useNavigate();
@@ -42,6 +43,7 @@ export default function ProfilePage() {
           <h1 style={styles.pageTitle}>Profile</h1>
           <div style={styles.grid}>
             <IdentityCard />
+            <CredibilityCard />
             <QuickSettings />
             <MyReportsCard />
           </div>

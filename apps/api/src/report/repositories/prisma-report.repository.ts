@@ -8,18 +8,25 @@ export class PrismaReportRepository implements IReportRepository {
   constructor(private readonly prisma: PrismaService) {}
 
   findById(id: string): Promise<Report | null> {
-    return this.prisma.report.findUnique({ where: { id } });
+    return this.prisma.report.findUnique({
+      where: { id },
+      include: { user: { select: { id: true, credibilityScore: true } } },
+    });
   }
 
   findActiveByLine(lineId: string): Promise<Report[]> {
     return this.prisma.report.findMany({
       where: { lineId, status: 'active', expiresAt: { gt: new Date() } },
+      include: { user: { select: { id: true, credibilityScore: true } } },
+      orderBy: { credibilityScore: 'desc' },
     });
   }
 
   findActiveAll(): Promise<Report[]> {
     return this.prisma.report.findMany({
       where: { status: 'active', expiresAt: { gt: new Date() } },
+      include: { user: { select: { id: true, credibilityScore: true } } },
+      orderBy: { credibilityScore: 'desc' },
     });
   }
 

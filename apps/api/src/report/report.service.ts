@@ -1,6 +1,10 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { Report } from '@prisma/client';
 import type { IReportRepository } from './report-repository.interface';
+import {
+  IUserRepository,
+  USER_REPOSITORY,
+} from '../user/interfaces/user-repository.interface';
 import { CreateReportDto } from './create-report.dto';
 import { EXPIRY_MINUTES } from './report-expiry.strategy';
 
@@ -9,11 +13,16 @@ export class ReportService {
   constructor(
     @Inject('IReportRepository')
     private readonly reportRepository: IReportRepository,
+    @Inject(USER_REPOSITORY)
+    private readonly userRepository: IUserRepository,
   ) {}
 
   async createReport(userId: string, dto: CreateReportDto): Promise<Report> {
     const expiresAt = new Date();
     expiresAt.setMinutes(expiresAt.getMinutes() + EXPIRY_MINUTES[dto.category]);
+
+    const author = await this.userRepository.findById(userId);
+    const authorScore = author?.credibilityScore ?? 0;
 
     return this.reportRepository.save({
       userId,
@@ -22,7 +31,7 @@ export class ReportService {
       category: dto.category,
       description: dto.description,
       photoUrl: dto.photoUrl,
-      credibilityScore: 5,
+      credibilityScore: 5 + authorScore,
       expiresAt,
     });
   }

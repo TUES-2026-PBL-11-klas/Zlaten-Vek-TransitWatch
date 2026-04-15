@@ -96,6 +96,7 @@ export interface ActiveReport {
   status: string;
   createdAt: string;
   line?: TransitLine;
+  user?: { id: string; credibilityScore: number };
 }
 
 export const TRANSIT_COLORS: Record<string, string> = {
