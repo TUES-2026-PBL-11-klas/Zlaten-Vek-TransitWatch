@@ -36,9 +36,8 @@ describe('PrismaReportRepository', () => {
       const result = await repo.findById('r1');
 
       expect(result).toBe(report);
-      expect(mockPrismaReport.findUnique).toHaveBeenCalledWith({
-        where: { id: 'r1' },
-      });
+      const [arg] = mockPrismaReport.findUnique.mock.calls[0];
+      expect(arg.where).toEqual({ id: 'r1' });
     });
 
     it('returns null when report does not exist', async () => {

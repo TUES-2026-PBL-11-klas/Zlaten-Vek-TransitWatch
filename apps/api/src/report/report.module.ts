@@ -7,9 +7,10 @@ import { ReportExpiryJobService } from './report-expiry-job.service';
 import { REPORT_REPOSITORY } from './interfaces/report-repository.interface';
 import { ReportStrategyFactory } from './strategies/report-strategy.factory';
 import { AuthModule } from '../auth/auth.module';
+import { UserModule } from '../user/user.module';
 
 @Module({
-  imports: [ScheduleModule.forRoot(), AuthModule],
+  imports: [ScheduleModule.forRoot(), AuthModule, UserModule],
   controllers: [ReportController],
   providers: [
     ReportService,

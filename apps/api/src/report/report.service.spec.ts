@@ -1,6 +1,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ReportService } from './report.service';
 import { IReportRepository } from './report-repository.interface';
+import {
+  IUserRepository,
+  USER_REPOSITORY,
+} from '../user/interfaces/user-repository.interface';
 import { ReportCategory } from '../../../../packages/shared/src/enums/report-category.enum';
 import { ReportStrategyFactory } from './strategies/report-strategy.factory';
 import type { Report } from '@prisma/client';
@@ -16,6 +20,16 @@ const mockRepo: jest.Mocked<IReportRepository> = {
   delete: jest.fn(),
 };
 
+const mockUserRepo: jest.Mocked<IUserRepository> = {
+  findById: jest.fn().mockResolvedValue({
+    id: 'user-uuid-1',
+    email: 'u@example.com',
+    credibilityScore: 0,
+    createdAt: new Date(),
+  }),
+  upsert: jest.fn(),
+};
+
 describe('ReportService', () => {
   let service: ReportService;
 
@@ -26,6 +40,7 @@ describe('ReportService', () => {
         ReportService,
         ReportStrategyFactory,
         { provide: 'IReportRepository', useValue: mockRepo },
+        { provide: USER_REPOSITORY, useValue: mockUserRepo },
       ],
     }).compile();
 
