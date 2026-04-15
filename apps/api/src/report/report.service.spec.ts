@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ReportService } from './report.service';
 import { IReportRepository } from './report-repository.interface';
 import { ReportCategory } from '../../../../packages/shared/src/enums/report-category.enum';
+import { ReportStrategyFactory } from './strategies/report-strategy.factory';
 import type { Report } from '@prisma/client';
 
 const mockRepo: jest.Mocked<IReportRepository> = {
@@ -23,6 +24,7 @@ describe('ReportService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ReportService,
+        ReportStrategyFactory,
         { provide: 'IReportRepository', useValue: mockRepo },
       ],
     }).compile();
