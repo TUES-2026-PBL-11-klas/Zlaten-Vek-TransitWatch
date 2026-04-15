@@ -82,9 +82,20 @@ export const transitApi = {
 
   voteOnReport: (reportId: string, type: 'confirm' | 'dispute') =>
     api
-      .post<{ vote: { id: string; type: string }; authorScore: number }>(
-        `/reports/${reportId}/votes`,
-        { type },
-      )
+      .post<{
+        vote: { id: string; type: string };
+        reportCredibilityScore: number;
+        reportStatus: string;
+        counts: { confirms: number; disputes: number };
+      }>(`/reports/${reportId}/votes`, { type })
+      .then((r) => r.data),
+
+  getReportVotes: (reportId: string) =>
+    api
+      .get<{
+        confirms: number;
+        disputes: number;
+        userVote: 'confirm' | 'dispute' | null;
+      }>(`/reports/${reportId}/votes`)
       .then((r) => r.data),
 };

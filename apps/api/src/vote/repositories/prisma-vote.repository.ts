@@ -2,10 +2,17 @@ import {
   Injectable,
   NotFoundException,
   ConflictException,
+  ForbiddenException,
 } from '@nestjs/common';
-import { Vote } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
-import { IVoteRepository } from '../interfaces/vote-repository.interface';
+import {
+  CastVoteResult,
+  IVoteRepository,
+  VoteCounts,
+} from '../interfaces/vote-repository.interface';
+
+const VERIFIED_THRESHOLD = 2;
+const HIDDEN_THRESHOLD = 2;
 
 @Injectable()
 export class PrismaVoteRepository implements IVoteRepository {
@@ -15,15 +22,23 @@ export class PrismaVoteRepository implements IVoteRepository {
     reportId: string;
     userId: string;
     type: 'confirm' | 'dispute';
-  }): Promise<{ vote: Vote; authorScore: number }> {
+  }): Promise<CastVoteResult> {
     const { reportId, userId, type } = params;
 
     return this.prisma.$transaction(async (tx) => {
       const report = await tx.report.findUnique({
         where: { id: reportId },
-        select: { id: true, userId: true },
+        select: {
+          id: true,
+          userId: true,
+          credibilityScore: true,
+          status: true,
+        },
       });
       if (!report) throw new NotFoundException('Report not found');
+      if (report.userId === userId) {
+        throw new ForbiddenException('You cannot vote on your own report');
+      }
 
       const existing = await tx.vote.findUnique({
         where: { reportId_userId: { reportId, userId } },
@@ -35,20 +50,51 @@ export class PrismaVoteRepository implements IVoteRepository {
       });
 
       const delta = type === 'confirm' ? 1 : -1;
-      const author = await tx.user.findUnique({
-        where: { id: report.userId },
-        select: { credibilityScore: true },
-      });
-      const current = author?.credibilityScore ?? 0;
-      const next = Math.max(0, current + delta);
+      const nextCredibility = report.credibilityScore + delta;
 
-      const updated = await tx.user.update({
-        where: { id: report.userId },
-        data: { credibilityScore: next },
-        select: { credibilityScore: true },
+      const [confirms, disputes] = await Promise.all([
+        tx.vote.count({ where: { reportId, type: 'confirm' } }),
+        tx.vote.count({ where: { reportId, type: 'dispute' } }),
+      ]);
+
+      let nextStatus = report.status;
+      if (nextStatus === 'active' || nextStatus === 'verified') {
+        if (disputes >= HIDDEN_THRESHOLD) nextStatus = 'hidden';
+        else if (confirms >= VERIFIED_THRESHOLD) nextStatus = 'verified';
+      }
+
+      const updated = await tx.report.update({
+        where: { id: reportId },
+        data: { credibilityScore: nextCredibility, status: nextStatus },
+        select: { credibilityScore: true, status: true },
       });
 
-      return { vote, authorScore: updated.credibilityScore };
+      return {
+        vote,
+        reportCredibilityScore: updated.credibilityScore,
+        reportStatus: updated.status,
+        counts: { confirms, disputes },
+      };
     });
+  }
+
+  async countVotes(reportId: string): Promise<VoteCounts> {
+    const [confirms, disputes] = await Promise.all([
+      this.prisma.vote.count({ where: { reportId, type: 'confirm' } }),
+      this.prisma.vote.count({ where: { reportId, type: 'dispute' } }),
+    ]);
+    return { confirms, disputes };
+  }
+
+  async findUserVote(
+    reportId: string,
+    userId: string,
+  ): Promise<'confirm' | 'dispute' | null> {
+    const vote = await this.prisma.vote.findUnique({
+      where: { reportId_userId: { reportId, userId } },
+      select: { type: true },
+    });
+    if (!vote) return null;
+    return vote.type === 'confirm' ? 'confirm' : 'dispute';
   }
 }

@@ -55,6 +55,7 @@ interface MapLayersProps {
   tripTimeline: ReturnType<typeof useTripTimeline>;
   onFollowChange: (following: boolean) => void;
   userLocation: { lat: number; lng: number; accuracy: number } | null;
+  currentUserId: string | null;
 }
 
 function MapLayers({
@@ -67,6 +68,7 @@ function MapLayers({
   tripTimeline,
   onFollowChange,
   userLocation,
+  currentUserId,
 }: MapLayersProps) {
   return (
     <>
@@ -98,6 +100,7 @@ function MapLayers({
           timeline={tripTimeline.timeline}
           loading={tripTimeline.loading}
           onClose={onDeselect}
+          currentUserId={currentUserId ?? null}
         />
       )}
 
@@ -220,6 +223,7 @@ export default function MapPage() {
             tripTimeline={tripTimeline}
             onFollowChange={handleFollowChange}
             userLocation={userLocation}
+            currentUserId={user?.id ?? null}
           />
         </MapContainer>
 

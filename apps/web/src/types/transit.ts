@@ -95,6 +95,8 @@ export interface ActiveReport {
   expiresAt: string;
   status: string;
   createdAt: string;
+  confirms?: number;
+  disputes?: number;
   line?: TransitLine;
   user?: { id: string; credibilityScore: number };
 }

@@ -1,9 +1,11 @@
+import { useState } from 'react';
 import { Popup } from 'react-leaflet';
 import { TRANSIT_COLORS } from '../../types/transit';
 import { useLines } from '../../hooks/useLines';
-import { useActiveReports } from '../../hooks/useActiveReports';
+import { useActiveReports, triggerReportsRefetch } from '../../hooks/useActiveReports';
 import { getCredibilityTier, UNVERIFIED_THRESHOLD } from '../../lib/credibility';
-import type { VehiclePosition, TripTimeline } from '../../types/transit';
+import { transitApi } from '../../lib/transit-api';
+import type { VehiclePosition, TripTimeline, ActiveReport } from '../../types/transit';
 
 const TYPE_LABELS: Record<string, string> = {
   bus: 'Автобус',
@@ -17,6 +19,7 @@ interface VehiclePopupProps {
   timeline: TripTimeline | null;
   loading: boolean;
   onClose: () => void;
+  currentUserId?: string | null;
 }
 
 const CATEGORY_ICONS: Record<string, string> = {
@@ -35,6 +38,86 @@ const CATEGORY_LABELS: Record<string, string> = {
   OTHER: 'Друго',
 };
 
+function ReportVoteControls({
+  report,
+  canVote,
+}: {
+  report: ActiveReport;
+  canVote: boolean;
+}) {
+  const [confirms, setConfirms] = useState(report.confirms ?? 0);
+  const [disputes, setDisputes] = useState(report.disputes ?? 0);
+  const [userVote, setUserVote] = useState<'confirm' | 'dispute' | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function vote(type: 'confirm' | 'dispute') {
+    if (busy || userVote) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await transitApi.voteOnReport(report.id, type);
+      setConfirms(res.counts.confirms);
+      setDisputes(res.counts.disputes);
+      setUserVote(type);
+      triggerReportsRefetch();
+    } catch (err: unknown) {
+      const status = (err as { response?: { status?: number } })?.response?.status;
+      if (status === 409) {
+        setUserVote(type);
+      } else if (status === 403) {
+        setError('Не може да гласувате за свой доклад');
+      } else {
+        setError('Грешка при гласуване');
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const btnStyle = (active: boolean, color: string): React.CSSProperties => ({
+    background: active ? color : '#F9FAFB',
+    color: active ? '#FFFFFF' : '#6B7280',
+    border: `1px solid ${active ? color : '#E5E7EB'}`,
+    borderRadius: 6,
+    padding: '2px 6px',
+    fontSize: 11,
+    fontWeight: 600,
+    cursor: canVote && !userVote && !busy ? 'pointer' : 'default',
+    opacity: !canVote ? 0.6 : 1,
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 3,
+    lineHeight: 1,
+  });
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+      <button
+        type="button"
+        onClick={() => canVote && vote('confirm')}
+        disabled={!canVote || !!userVote || busy}
+        style={btnStyle(userVote === 'confirm', '#16A34A')}
+        aria-label="Потвърди"
+      >
+        ↑ {confirms}
+      </button>
+      <button
+        type="button"
+        onClick={() => canVote && vote('dispute')}
+        disabled={!canVote || !!userVote || busy}
+        style={btnStyle(userVote === 'dispute', '#DC2626')}
+        aria-label="Оспори"
+      >
+        ↓ {disputes}
+      </button>
+      {error && (
+        <span style={{ fontSize: 10, color: '#DC2626' }}>{error}</span>
+      )}
+    </div>
+  );
+}
+
 function timeRemaining(expiresAt: string): string {
   const diff = new Date(expiresAt).getTime() - Date.now();
   if (diff <= 0) return 'изтекъл';
@@ -42,11 +125,12 @@ function timeRemaining(expiresAt: string): string {
   return `${mins} мин`;
 }
 
-export default function VehiclePopup({ vehicle, timeline, loading, onClose }: VehiclePopupProps) {
+export default function VehiclePopup({ vehicle, timeline, loading, onClose, currentUserId }: VehiclePopupProps) {
   const { linesByGtfsId } = useLines();
   const { reportsByVehicleId } = useActiveReports();
   const line = linesByGtfsId.get(vehicle.routeGtfsId);
-  const vehicleReports = reportsByVehicleId.get(vehicle.vehicleId) ?? [];
+  const rawReports = reportsByVehicleId.get(vehicle.vehicleId) ?? [];
+  const vehicleReports = rawReports.filter((r) => r.status !== 'hidden');
 
   const lineColor = timeline?.lineColor
     ? `#${timeline.lineColor}`
@@ -259,6 +343,21 @@ export default function VehiclePopup({ vehicle, timeline, loading, onClose }: Ve
                           Непотвърден
                         </span>
                       )}
+                      {report.status === 'verified' && (
+                        <span style={{
+                          fontSize: 10,
+                          fontWeight: 600,
+                          color: '#2563EB',
+                          backgroundColor: '#EFF6FF',
+                          padding: '1px 6px',
+                          borderRadius: 999,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 2,
+                        }}>
+                          ✓ Потвърден
+                        </span>
+                      )}
                     </div>
                     {report.description && (
                       <div style={{
@@ -275,6 +374,10 @@ export default function VehiclePopup({ vehicle, timeline, loading, onClose }: Ve
                     <div style={{ fontSize: 10, color: '#9CA3AF', marginTop: 2 }}>
                       {timeRemaining(report.expiresAt)}
                     </div>
+                    <ReportVoteControls
+                      report={report}
+                      canVote={!!currentUserId && currentUserId !== report.userId}
+                    />
                   </div>
                   {report.photoUrl && (
                     <img
