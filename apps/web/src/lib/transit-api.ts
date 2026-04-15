@@ -72,4 +72,19 @@ export const transitApi = {
 
   deleteReport: (id: string) =>
     api.delete(`/reports/${id}`),
+
+  getMe: () =>
+    api
+      .get<{ id: string; email: string; credibilityScore: number; createdAt: string }>(
+        '/auth/me',
+      )
+      .then((r) => r.data),
+
+  voteOnReport: (reportId: string, type: 'confirm' | 'dispute') =>
+    api
+      .post<{ vote: { id: string; type: string }; authorScore: number }>(
+        `/reports/${reportId}/votes`,
+        { type },
+      )
+      .then((r) => r.data),
 };

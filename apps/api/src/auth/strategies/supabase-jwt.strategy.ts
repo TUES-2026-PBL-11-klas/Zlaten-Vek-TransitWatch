@@ -22,7 +22,7 @@ export class SupabaseJwtStrategy extends PassportStrategy(
     const jwtSecret = process.env.SUPABASE_JWT_SECRET;
 
     if (supabaseUrl) {
-      // Project uses ES256 (JWKS-based verification)
+      // Supabase signs user JWTs with ES256 (JWKS-based verification)
       super({
         jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
         ignoreExpiration: false,

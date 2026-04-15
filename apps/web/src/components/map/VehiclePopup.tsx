@@ -2,6 +2,7 @@ import { Popup } from 'react-leaflet';
 import { TRANSIT_COLORS } from '../../types/transit';
 import { useLines } from '../../hooks/useLines';
 import { useActiveReports } from '../../hooks/useActiveReports';
+import { getCredibilityTier, UNVERIFIED_THRESHOLD } from '../../lib/credibility';
 import type { VehiclePosition, TripTimeline } from '../../types/transit';
 
 const TYPE_LABELS: Record<string, string> = {
@@ -213,7 +214,11 @@ export default function VehiclePopup({ vehicle, timeline, loading, onClose }: Ve
               </span>
             </div>
             <div className="popup-scroll" style={{ padding: '0 16px 12px' }}>
-              {vehicleReports.map((report) => (
+              {vehicleReports.map((report) => {
+                const authorScore = report.user?.credibilityScore ?? 0;
+                const tier = getCredibilityTier(authorScore);
+                const unverified = authorScore < UNVERIFIED_THRESHOLD;
+                return (
                 <div
                   key={report.id}
                   style={{
@@ -228,8 +233,32 @@ export default function VehiclePopup({ vehicle, timeline, loading, onClose }: Ve
                     {CATEGORY_ICONS[report.category] ?? '\u{2139}\u{FE0F}'}
                   </span>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: '#374151' }}>
-                      {CATEGORY_LABELS[report.category] ?? report.category}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: '#374151' }}>
+                        {CATEGORY_LABELS[report.category] ?? report.category}
+                      </div>
+                      <span style={{
+                        fontSize: 10,
+                        fontWeight: 600,
+                        color: tier.color,
+                        backgroundColor: tier.background,
+                        padding: '1px 6px',
+                        borderRadius: 999,
+                      }}>
+                        {tier.label}
+                      </span>
+                      {unverified && (
+                        <span style={{
+                          fontSize: 10,
+                          fontWeight: 500,
+                          color: '#9CA3AF',
+                          border: '1px solid #E5E7EB',
+                          padding: '1px 5px',
+                          borderRadius: 999,
+                        }}>
+                          Непотвърден
+                        </span>
+                      )}
                     </div>
                     {report.description && (
                       <div style={{
@@ -261,7 +290,8 @@ export default function VehiclePopup({ vehicle, timeline, loading, onClose }: Ve
                     />
                   )}
                 </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
