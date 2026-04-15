@@ -6,20 +6,22 @@ import {
   USER_REPOSITORY,
 } from '../user/interfaces/user-repository.interface';
 import { CreateReportDto } from './create-report.dto';
-import { EXPIRY_MINUTES } from './report-expiry.strategy';
+import { ReportStrategyFactory } from './strategies/report-strategy.factory';
 
 @Injectable()
 export class ReportService {
   constructor(
     @Inject('IReportRepository')
     private readonly reportRepository: IReportRepository,
+    private readonly strategyFactory: ReportStrategyFactory,
     @Inject(USER_REPOSITORY)
     private readonly userRepository: IUserRepository,
   ) {}
 
   async createReport(userId: string, dto: CreateReportDto): Promise<Report> {
+    const strategy = this.strategyFactory.getStrategy(dto.category);
     const expiresAt = new Date();
-    expiresAt.setMinutes(expiresAt.getMinutes() + EXPIRY_MINUTES[dto.category]);
+    expiresAt.setMinutes(expiresAt.getMinutes() + strategy.getExpiryMinutes());
 
     const author = await this.userRepository.findById(userId);
     const authorScore = author?.credibilityScore ?? 0;

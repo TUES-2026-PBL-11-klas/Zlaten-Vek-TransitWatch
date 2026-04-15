@@ -6,6 +6,7 @@ import {
   USER_REPOSITORY,
 } from '../user/interfaces/user-repository.interface';
 import { ReportCategory } from '../../../../packages/shared/src/enums/report-category.enum';
+import { ReportStrategyFactory } from './strategies/report-strategy.factory';
 import type { Report } from '@prisma/client';
 
 const mockRepo: jest.Mocked<IReportRepository> = {
@@ -37,6 +38,7 @@ describe('ReportService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ReportService,
+        ReportStrategyFactory,
         { provide: 'IReportRepository', useValue: mockRepo },
         { provide: USER_REPOSITORY, useValue: mockUserRepo },
       ],
