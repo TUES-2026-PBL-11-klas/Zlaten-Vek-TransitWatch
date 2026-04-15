@@ -1,5 +1,15 @@
-import { Body, Controller, Param, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
+import type { Request } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { OptionalJwtAuthGuard } from '../auth/guards/optional-jwt-auth.guard';
 import {
   CurrentUser,
   AuthUser,
@@ -19,5 +29,15 @@ export class VoteController {
     @Body() dto: CastVoteDto,
   ) {
     return this.voteService.castVote(reportId, user.userId, dto.type);
+  }
+
+  @Get()
+  @UseGuards(OptionalJwtAuthGuard)
+  async getVotes(
+    @Param('reportId') reportId: string,
+    @Req() req: Request & { user?: AuthUser | null },
+  ) {
+    const userId = req.user?.userId ?? null;
+    return this.voteService.getVoteSummary(reportId, userId);
   }
 }

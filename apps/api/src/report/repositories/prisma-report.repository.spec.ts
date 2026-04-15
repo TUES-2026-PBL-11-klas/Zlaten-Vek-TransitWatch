@@ -48,13 +48,13 @@ describe('PrismaReportRepository', () => {
   });
 
   describe('findActiveAll', () => {
-    it('queries with status=active and expiresAt > now', async () => {
+    it('queries visible statuses and expiresAt > now', async () => {
       mockPrismaReport.findMany.mockResolvedValue([]);
 
       await repo.findActiveAll();
 
       const [arg] = mockPrismaReport.findMany.mock.calls[0];
-      expect(arg.where.status).toBe('active');
+      expect(arg.where.status).toEqual({ in: ['active', 'verified'] });
       expect(arg.where.expiresAt).toHaveProperty('gt');
       expect(arg.where.expiresAt.gt).toBeInstanceOf(Date);
     });
@@ -68,7 +68,7 @@ describe('PrismaReportRepository', () => {
 
       const [arg] = mockPrismaReport.findMany.mock.calls[0];
       expect(arg.where.lineId).toBe('line-7');
-      expect(arg.where.status).toBe('active');
+      expect(arg.where.status).toEqual({ in: ['active', 'verified'] });
       expect(arg.where.expiresAt).toHaveProperty('gt');
     });
   });
