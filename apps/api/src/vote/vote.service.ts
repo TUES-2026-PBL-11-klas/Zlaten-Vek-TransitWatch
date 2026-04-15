@@ -1,5 +1,8 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { IVoteRepository, VOTE_REPOSITORY } from './interfaces/vote-repository.interface';
+import {
+  IVoteRepository,
+  VOTE_REPOSITORY,
+} from './interfaces/vote-repository.interface';
 
 @Injectable()
 export class VoteService {
