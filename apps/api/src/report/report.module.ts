@@ -18,6 +18,6 @@ import { UserModule } from '../user/user.module';
     ReportStrategyFactory,
     { provide: REPORT_REPOSITORY, useClass: PrismaReportRepository },
   ],
-  exports: [REPORT_REPOSITORY],
+  exports: [REPORT_REPOSITORY, ReportService],
 })
 export class ReportModule {}

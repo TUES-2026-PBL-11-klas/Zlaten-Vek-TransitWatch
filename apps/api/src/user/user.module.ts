@@ -10,6 +10,6 @@ import { USER_REPOSITORY } from './interfaces/user-repository.interface';
     UserService,
     { provide: USER_REPOSITORY, useClass: UserRepository },
   ],
-  exports: [USER_REPOSITORY],
+  exports: [USER_REPOSITORY, UserService],
 })
 export class UserModule {}
