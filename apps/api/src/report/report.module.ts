@@ -15,6 +15,6 @@ import { AuthModule } from '../auth/auth.module';
     ReportExpiryJobService,
     { provide: REPORT_REPOSITORY, useClass: PrismaReportRepository },
   ],
-  exports: [REPORT_REPOSITORY],
+  exports: [REPORT_REPOSITORY, ReportService],
 })
 export class ReportModule {}
