@@ -23,8 +23,14 @@ describe('ReportExpiryJobService', () => {
       providers: [
         ReportExpiryJobService,
         { provide: 'IReportRepository', useValue: mockRepo },
-        { provide: 'PROM_METRIC_REPORTS_EXPIRED_TOTAL', useValue: { inc: jest.fn() } },
-        { provide: 'PROM_METRIC_ACTIVE_REPORTS_GAUGE', useValue: { inc: jest.fn(), dec: jest.fn(), set: jest.fn() } },
+        {
+          provide: 'PROM_METRIC_REPORTS_EXPIRED_TOTAL',
+          useValue: { inc: jest.fn() },
+        },
+        {
+          provide: 'PROM_METRIC_ACTIVE_REPORTS_GAUGE',
+          useValue: { inc: jest.fn(), dec: jest.fn(), set: jest.fn() },
+        },
       ],
     }).compile();
 
