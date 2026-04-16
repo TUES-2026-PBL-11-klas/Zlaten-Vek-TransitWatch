@@ -2,10 +2,8 @@ import 'leaflet/dist/leaflet.css';
 import './map.css';
 import L from 'leaflet';
 import { useState, useEffect, useCallback } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
 import { MapContainer, TileLayer, useMapEvents } from 'react-leaflet';
-import type { User } from '@supabase/supabase-js';
-import { supabase } from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
 import StopMarkers from '../components/map/StopMarkers';
 import VehicleMarkers from '../components/map/VehicleMarkers';
 import RouteOverlay from '../components/map/RouteOverlay';
@@ -110,13 +108,12 @@ function MapLayers({
 }
 
 export default function MapPage() {
+  const { user } = useAuth();
   const [selectedStop, setSelectedStop] = useState<SelectedStop | null>(null);
   const [selectedVehicle, setSelectedVehicle] = useState<VehiclePosition | null>(null);
   const [isFollowing, setIsFollowing] = useState(false);
-  const [user, setUser] = useState<User | null>(null);
   const [showReportFlow, setShowReportFlow] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
-  const navigate = useNavigate();
 
   const handleFollowChange = useCallback((following: boolean) => {
     setIsFollowing(following);
@@ -136,19 +133,6 @@ export default function MapPage() {
     };
   }, [locationError]);
 
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => setUser(data.session?.user ?? null));
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-    });
-    return () => listener.subscription.unsubscribe();
-  }, []);
-
-  async function handleSignOut() {
-    await supabase.auth.signOut();
-    navigate('/login');
-  }
-
   const handleStopSelect = (stop: TransitStop) => {
     setSelectedVehicle(null);
     setSelectedStop({ id: stop.id, lat: stop.lat, lng: stop.lng });
@@ -166,35 +150,6 @@ export default function MapPage() {
 
   return (
     <div className="map-page">
-      {/* Navbar */}
-      <header className="map-header">
-        <span className="map-brand">
-          TransitWatch Sofia
-        </span>
-        <nav className="map-nav">
-          {user ? (
-            <>
-              <Link to="/profile" className="map-nav-link">
-                Profile
-              </Link>
-              <button onClick={handleSignOut} className="map-nav-link map-nav-link--primary">
-                Sign out
-              </button>
-            </>
-          ) : (
-            <>
-              <Link to="/login" className="map-nav-link">
-                Login
-              </Link>
-              <Link to="/register" className="map-nav-link map-nav-link--primary">
-                Register
-              </Link>
-            </>
-          )}
-        </nav>
-      </header>
-
-      {/* Map + panels */}
       <div className="map-stage">
         <MapContainer
           center={SOFIA_CENTER}
