@@ -9,6 +9,7 @@ import { LineModule } from './line/line.module';
 import { UserModule } from './user/user.module';
 import { TransitModule } from './transit/transit.module';
 import { VoteModule } from './vote/vote.module';
+import { MetricsModule } from './metrics/metrics.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { APP_GUARD } from '@nestjs/core';
 
@@ -22,6 +23,7 @@ import { APP_GUARD } from '@nestjs/core';
     UserModule,
     TransitModule,
     VoteModule,
+    MetricsModule,
   ],
   controllers: [AppController],
   providers: [AppService, { provide: APP_GUARD, useClass: JwtAuthGuard }],

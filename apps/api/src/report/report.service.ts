@@ -7,6 +7,8 @@ import {
 } from '../user/interfaces/user-repository.interface';
 import { CreateReportDto } from './create-report.dto';
 import { ReportStrategyFactory } from './strategies/report-strategy.factory';
+import { InjectMetric } from '@willsoto/nestjs-prometheus';
+import { Counter, Gauge } from 'prom-client';
 
 @Injectable()
 export class ReportService {
@@ -16,6 +18,10 @@ export class ReportService {
     private readonly strategyFactory: ReportStrategyFactory,
     @Inject(USER_REPOSITORY)
     private readonly userRepository: IUserRepository,
+    @InjectMetric('reports_created_total')
+    private readonly reportsCreatedCounter: Counter,
+    @InjectMetric('active_reports_gauge')
+    private readonly activeReportsGauge: Gauge,
   ) {}
 
   async createReport(userId: string, dto: CreateReportDto): Promise<Report> {
@@ -26,7 +32,7 @@ export class ReportService {
     const author = await this.userRepository.findById(userId);
     const authorScore = author?.credibilityScore ?? 0;
 
-    return this.reportRepository.save({
+    const report = await this.reportRepository.save({
       userId,
       lineId: dto.lineId,
       vehicleId: dto.vehicleId,
@@ -36,6 +42,11 @@ export class ReportService {
       credibilityScore: 5 + authorScore,
       expiresAt,
     });
+
+    this.reportsCreatedCounter.inc({ category: dto.category });
+    this.activeReportsGauge.inc();
+
+    return report;
   }
 
   async getActiveReports(): Promise<Report[]> {

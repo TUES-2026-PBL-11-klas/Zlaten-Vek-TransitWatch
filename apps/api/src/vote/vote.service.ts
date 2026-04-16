@@ -3,16 +3,30 @@ import {
   IVoteRepository,
   VOTE_REPOSITORY,
 } from './interfaces/vote-repository.interface';
+import { InjectMetric } from '@willsoto/nestjs-prometheus';
+import { Counter } from 'prom-client';
 
 @Injectable()
 export class VoteService {
   constructor(
     @Inject(VOTE_REPOSITORY)
     private readonly voteRepository: IVoteRepository,
+    @InjectMetric('votes_total')
+    private readonly votesCounter: Counter,
   ) {}
 
-  castVote(reportId: string, userId: string, type: 'confirm' | 'dispute') {
-    return this.voteRepository.castVote({ reportId, userId, type });
+  async castVote(
+    reportId: string,
+    userId: string,
+    type: 'confirm' | 'dispute',
+  ) {
+    const result = await this.voteRepository.castVote({
+      reportId,
+      userId,
+      type,
+    });
+    this.votesCounter.inc({ type });
+    return result;
   }
 
   async getVoteSummary(reportId: string, userId: string | null) {

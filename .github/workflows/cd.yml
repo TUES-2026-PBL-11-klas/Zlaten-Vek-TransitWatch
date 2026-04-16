@@ -75,6 +75,9 @@ jobs:
         kubectl set image deployment/web web=${{ env.WEB_IMAGE }}:latest -n transitwatch
         kubectl rollout status deployment/api -n transitwatch --timeout=120s
         kubectl rollout status deployment/web -n transitwatch --timeout=120s
+        kubectl rollout status deployment/prometheus -n transitwatch --timeout=120s
+        kubectl rollout status deployment/alertmanager -n transitwatch --timeout=120s
+        kubectl rollout status deployment/alertmanager-discord -n transitwatch --timeout=120s
 
     - name: Notify Discord (success)
       if: success()

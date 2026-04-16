@@ -19,6 +19,8 @@ import {
   ITransitRepository,
   TRANSIT_REPOSITORY,
 } from '../interfaces/transit-repository.interface';
+import { InjectMetric } from '@willsoto/nestjs-prometheus';
+import { Histogram } from 'prom-client';
 
 const GTFS_STATIC_URL =
   process.env.GTFS_STATIC_URL || 'https://gtfs.sofiatraffic.bg/api/v1/static';
@@ -61,6 +63,8 @@ export class GtfsStaticService implements OnModuleInit {
   constructor(
     @Inject(TRANSIT_REPOSITORY)
     private readonly transitRepository: ITransitRepository,
+    @InjectMetric('gtfs_import_duration_seconds')
+    private readonly importDurationHistogram: Histogram,
   ) {}
 
   async onModuleInit() {
@@ -96,72 +100,82 @@ export class GtfsStaticService implements OnModuleInit {
     lines: number;
     shapes: number;
   }> {
-    this.logger.log(`Downloading GTFS static feed from ${GTFS_STATIC_URL}...`);
+    const endTimer = this.importDurationHistogram.startTimer();
 
-    let zipBuffer: Buffer;
     try {
-      const response = await fetch(GTFS_STATIC_URL);
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-      zipBuffer = Buffer.from(await response.arrayBuffer());
-    } catch (error) {
-      this.logger.error(
-        `Failed to download GTFS feed: ${(error as Error).message}`,
+      this.logger.log(
+        `Downloading GTFS static feed from ${GTFS_STATIC_URL}...`,
       );
-      throw error;
+
+      let zipBuffer: Buffer;
+      try {
+        const response = await fetch(GTFS_STATIC_URL);
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        zipBuffer = Buffer.from(await response.arrayBuffer());
+      } catch (error) {
+        this.logger.error(
+          `Failed to download GTFS feed: ${(error as Error).message}`,
+        );
+        throw error;
+      }
+
+      this.logger.log(
+        `Downloaded ${(zipBuffer.length / 1024 / 1024).toFixed(1)} MB. Extracting...`,
+      );
+      const zip = new AdmZip(zipBuffer);
+      const entries = zip.getEntries();
+
+      const files = new Map<string, string>();
+      for (const entry of entries) {
+        files.set(entry.entryName, entry.getData().toString('utf-8'));
+      }
+
+      // Parse translations first (for Bulgarian names)
+      const translations = this.parseTranslations(
+        files.get('translations.txt'),
+      );
+
+      // 1. Import stops
+      const stopsImported = await this.importStops(
+        files.get('stops.txt'),
+        translations,
+      );
+
+      // 2. Import routes (lines)
+      const linesImported = await this.importRoutes(
+        files.get('routes.txt'),
+        translations,
+      );
+
+      // 3. Parse trips (in-memory mapping)
+      this.parseTrips(files.get('trips.txt'));
+
+      // 3b. Parse calendar_dates for service filtering
+      this.parseCalendarDates(files.get('calendar_dates.txt'));
+
+      // 3c. Build stop_code index for sibling stop lookup
+      this.parseStopCodes(files.get('stops.txt'));
+
+      // 4. Parse stop_times and populate LineStops
+      await this.importStopTimes(files.get('stop_times.txt'));
+
+      // 5. Import shapes
+      const shapesImported = await this.importShapes(files.get('shapes.txt'));
+
+      this.logger.log(
+        `GTFS import complete: ${stopsImported} stops, ${linesImported} lines, ${shapesImported} shapes`,
+      );
+
+      return {
+        stops: stopsImported,
+        lines: linesImported,
+        shapes: shapesImported,
+      };
+    } finally {
+      endTimer();
     }
-
-    this.logger.log(
-      `Downloaded ${(zipBuffer.length / 1024 / 1024).toFixed(1)} MB. Extracting...`,
-    );
-    const zip = new AdmZip(zipBuffer);
-    const entries = zip.getEntries();
-
-    const files = new Map<string, string>();
-    for (const entry of entries) {
-      files.set(entry.entryName, entry.getData().toString('utf-8'));
-    }
-
-    // Parse translations first (for Bulgarian names)
-    const translations = this.parseTranslations(files.get('translations.txt'));
-
-    // 1. Import stops
-    const stopsImported = await this.importStops(
-      files.get('stops.txt'),
-      translations,
-    );
-
-    // 2. Import routes (lines)
-    const linesImported = await this.importRoutes(
-      files.get('routes.txt'),
-      translations,
-    );
-
-    // 3. Parse trips (in-memory mapping)
-    this.parseTrips(files.get('trips.txt'));
-
-    // 3b. Parse calendar_dates for service filtering
-    this.parseCalendarDates(files.get('calendar_dates.txt'));
-
-    // 3c. Build stop_code index for sibling stop lookup
-    this.parseStopCodes(files.get('stops.txt'));
-
-    // 4. Parse stop_times and populate LineStops
-    await this.importStopTimes(files.get('stop_times.txt'));
-
-    // 5. Import shapes
-    const shapesImported = await this.importShapes(files.get('shapes.txt'));
-
-    this.logger.log(
-      `GTFS import complete: ${stopsImported} stops, ${linesImported} lines, ${shapesImported} shapes`,
-    );
-
-    return {
-      stops: stopsImported,
-      lines: linesImported,
-      shapes: shapesImported,
-    };
   }
 
   getStopTimesMap(): Map<string, StopTimeEntry[]> {
