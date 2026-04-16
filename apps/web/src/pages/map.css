@@ -393,13 +393,3 @@
     box-shadow: 0 0 0 0 rgba(220, 38, 38, 0);
   }
 }
-
-/* ─── Mobile: push floating controls above the bottom tab bar ────────────── */
-
-@media (max-width: 767px) {
-  .report-fab,
-  .locate-me-btn,
-  .recenter-btn {
-    bottom: 80px; /* 56px tab bar + 24px original spacing */
-  }
-}

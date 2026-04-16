@@ -18,7 +18,7 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="flex flex-col min-h-full bg-[#F9FAFB] font-[Inter,system-ui,sans-serif]">
+    <div className="flex flex-col h-full overflow-y-auto bg-[#F9FAFB] font-[Inter,system-ui,sans-serif]">
       <main className="flex-1 px-6 py-10">
         <div className="max-w-[780px] mx-auto">
           <div className="flex items-center justify-between mb-6">

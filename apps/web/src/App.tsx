@@ -13,7 +13,7 @@ function App() {
       <AuthProvider>
         <div className="flex flex-col h-dvh">
           <DesktopNav />
-          <main className="flex-1 overflow-hidden relative">
+          <main className="flex-1 min-h-0 relative">
             <Routes>
               <Route path="/" element={<MapPage />} />
               <Route path="/login" element={<LoginPage />} />

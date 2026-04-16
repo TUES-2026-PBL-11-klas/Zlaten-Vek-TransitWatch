@@ -13,7 +13,7 @@ export default function MobileNav() {
   if (loading) return null;
 
   return (
-    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-[1002] bg-white border-t border-gray-200 pb-[env(safe-area-inset-bottom)]">
+    <nav className="md:hidden z-[1002] bg-white border-t border-gray-200 flex-shrink-0 pb-[env(safe-area-inset-bottom)]">
       <div className="flex items-center justify-around h-14 px-2">
         <Tab to="/" icon={<Map size={20} />} label="Map" active={pathname === '/'} />
 
