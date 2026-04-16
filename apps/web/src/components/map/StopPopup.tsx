@@ -41,11 +41,11 @@ function SkeletonArrivalRow() {
   );
 }
 
-function StopPopupContent({ stopId, onClose }: { stopId: string; onClose: () => void }) {
+export function StopPopupContent({ stopId, onClose }: { stopId: string; onClose: () => void }) {
   const { arrivals, stopName, loading, error } = useArrivals(stopId);
 
   return (
-    <div style={{ width: 272, fontFamily: "'Inter', system-ui, sans-serif" }}>
+    <div style={{ fontFamily: "'Inter', system-ui, sans-serif" }}>
       {/* Header */}
       <div
         style={{

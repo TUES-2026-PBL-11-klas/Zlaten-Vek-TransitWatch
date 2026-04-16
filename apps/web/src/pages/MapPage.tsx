@@ -8,8 +8,10 @@ import StopMarkers from '../components/map/StopMarkers';
 import VehicleMarkers from '../components/map/VehicleMarkers';
 import RouteOverlay from '../components/map/RouteOverlay';
 import MapController from '../components/map/MapController';
-import VehiclePopup from '../components/map/VehiclePopup';
-import StopPopup from '../components/map/StopPopup';
+import VehiclePopup, { VehiclePopupContent } from '../components/map/VehiclePopup';
+import StopPopup, { StopPopupContent } from '../components/map/StopPopup';
+import MobileBottomSheet from '../components/map/MobileBottomSheet';
+import { useIsMobile } from '../hooks/useIsMobile';
 import UserLocationMarker from '../components/map/UserLocationMarker';
 import LocateMeButton from '../components/map/LocateMeButton';
 import ReportFAB from '../components/map/ReportFAB';
@@ -54,6 +56,7 @@ interface MapLayersProps {
   onFollowChange: (following: boolean) => void;
   userLocation: { lat: number; lng: number; accuracy: number } | null;
   currentUserId: string | null;
+  isMobile: boolean;
 }
 
 function MapLayers({
@@ -67,6 +70,7 @@ function MapLayers({
   onFollowChange,
   userLocation,
   currentUserId,
+  isMobile,
 }: MapLayersProps) {
   return (
     <>
@@ -92,7 +96,7 @@ function MapLayers({
       />
       <MapClickHandler onMapClick={onMapClick} />
 
-      {selectedVehicle && (
+      {selectedVehicle && !isMobile && (
         <VehiclePopup
           vehicle={selectedVehicle}
           timeline={tripTimeline.timeline}
@@ -102,13 +106,14 @@ function MapLayers({
         />
       )}
 
-      <StopPopup selectedStop={selectedStop} onClose={onDeselect} />
+      {!isMobile && <StopPopup selectedStop={selectedStop} onClose={onDeselect} />}
     </>
   );
 }
 
 export default function MapPage() {
   const { user } = useAuth();
+  const isMobile = useIsMobile();
   const [selectedStop, setSelectedStop] = useState<SelectedStop | null>(null);
   const [selectedVehicle, setSelectedVehicle] = useState<VehiclePosition | null>(null);
   const [isFollowing, setIsFollowing] = useState(false);
@@ -179,8 +184,28 @@ export default function MapPage() {
             onFollowChange={handleFollowChange}
             userLocation={userLocation}
             currentUserId={user?.id ?? null}
+            isMobile={isMobile}
           />
         </MapContainer>
+
+        {/* Mobile bottom sheets — popups rendered outside MapContainer on phones */}
+        {selectedVehicle && isMobile && (
+          <MobileBottomSheet onClose={handleDeselect}>
+            <VehiclePopupContent
+              vehicle={selectedVehicle}
+              timeline={tripTimeline.timeline}
+              loading={tripTimeline.loading}
+              onClose={handleDeselect}
+              currentUserId={user?.id ?? null}
+            />
+          </MobileBottomSheet>
+        )}
+
+        {selectedStop && isMobile && (
+          <MobileBottomSheet onClose={handleDeselect}>
+            <StopPopupContent stopId={selectedStop.id} onClose={handleDeselect} />
+          </MobileBottomSheet>
+        )}
 
         {/* Re-center button — shown when user pans away from followed vehicle */}
         {selectedVehicle && !isFollowing && (

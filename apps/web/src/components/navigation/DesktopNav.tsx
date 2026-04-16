@@ -69,7 +69,7 @@ export default function DesktopNav() {
             {/* Collapse toggle */}
             <button
               onClick={toggle}
-              className="ml-2 p-1.5 rounded-md text-white/60 hover:text-white hover:bg-white/10 transition-colors"
+              className="ml-2 p-1.5 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-md text-white/60 hover:text-white hover:bg-white/10 transition-colors"
               aria-label="Collapse navigation"
             >
               <ChevronUp size={16} />

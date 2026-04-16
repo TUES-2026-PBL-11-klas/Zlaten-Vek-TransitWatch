@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useArrivals } from '../../hooks/useArrivals';
 import { TRANSIT_COLORS } from '../../types/transit';
+import { useSwipeToDismiss } from '../../hooks/useSwipeToDismiss';
 import './panels.css';
 
 interface ArrivalPanelProps {
@@ -85,20 +86,23 @@ export default function ArrivalPanel({ stopId, onClose }: ArrivalPanelProps) {
     setTimeout(onClose, 300);
   };
 
+  const { handlers: swipeHandlers } = useSwipeToDismiss({ onDismiss: handleClose });
+
   return (
     <div className={`panel-container${open ? ' open' : ''}`}>
-      <div className="panel">
-        <div className="panel-handle" />
+      <div className="panel" {...swipeHandlers}>
+        <div className="panel-header">
+          <div className="panel-handle" />
 
-        {/* Header */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'flex-start',
-            justifyContent: 'space-between',
-            padding: '16px 20px 12px',
-          }}
-        >
+          {/* Header */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              justifyContent: 'space-between',
+              padding: '16px 20px 12px',
+            }}
+          >
           <div>
             <h2 style={{ margin: 0, fontSize: 18, fontWeight: 600, color: '#111827' }}>
               {stopName || '—'}
@@ -115,7 +119,11 @@ export default function ArrivalPanel({ stopId, onClose }: ArrivalPanelProps) {
               background: 'none',
               border: 'none',
               cursor: 'pointer',
-              padding: 4,
+              minWidth: 44,
+              minHeight: 44,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
               color: '#6B7280',
               fontSize: 20,
               lineHeight: 1,
@@ -126,7 +134,8 @@ export default function ArrivalPanel({ stopId, onClose }: ArrivalPanelProps) {
           </button>
         </div>
 
-        <div style={{ height: 1, background: '#E5E7EB', margin: '0 20px' }} />
+          <div style={{ height: 1, background: '#E5E7EB', margin: '0 20px' }} />
+        </div>
 
         {/* Content */}
         <div style={{ padding: '4px 20px 20px' }}>

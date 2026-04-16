@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { TRANSIT_COLORS } from '../../types/transit';
+import { useSwipeToDismiss } from '../../hooks/useSwipeToDismiss';
 import type { TripTimeline } from '../../types/transit';
 import './panels.css';
 
@@ -29,6 +30,8 @@ export default function TripTimelinePanel({ timeline, loading, onClose }: TripTi
     setTimeout(onClose, 300);
   };
 
+  const { handlers: swipeHandlers } = useSwipeToDismiss({ onDismiss: handleClose });
+
   const lineColor =
     timeline?.lineColor
       ? `#${timeline.lineColor}`
@@ -39,18 +42,19 @@ export default function TripTimelinePanel({ timeline, loading, onClose }: TripTi
 
   return (
     <div className={`panel-container${open ? ' open' : ''}`}>
-      <div className="panel">
-        <div className="panel-handle" />
+      <div className="panel" {...swipeHandlers}>
+        <div className="panel-header">
+          <div className="panel-handle" />
 
-        {/* Header */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'flex-start',
-            justifyContent: 'space-between',
-            padding: '16px 20px 12px',
-          }}
-        >
+          {/* Header */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              justifyContent: 'space-between',
+              padding: '16px 20px 12px',
+            }}
+          >
           <div>
             {loading || !timeline ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -88,7 +92,11 @@ export default function TripTimelinePanel({ timeline, loading, onClose }: TripTi
               background: 'none',
               border: 'none',
               cursor: 'pointer',
-              padding: 4,
+              minWidth: 44,
+              minHeight: 44,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
               color: '#6B7280',
               fontSize: 20,
               lineHeight: 1,
@@ -99,7 +107,8 @@ export default function TripTimelinePanel({ timeline, loading, onClose }: TripTi
           </button>
         </div>
 
-        <div style={{ height: 1, background: '#E5E7EB', margin: '0 20px' }} />
+          <div style={{ height: 1, background: '#E5E7EB', margin: '0 20px' }} />
+        </div>
 
         {/* Loading skeleton */}
         {(loading || !timeline) && (

@@ -125,7 +125,7 @@ function timeRemaining(expiresAt: string): string {
   return `${mins} мин`;
 }
 
-export default function VehiclePopup({ vehicle, timeline, loading, onClose, currentUserId }: VehiclePopupProps) {
+export function VehiclePopupContent({ vehicle, timeline, loading, onClose, currentUserId }: VehiclePopupProps) {
   const { linesByGtfsId } = useLines();
   const { reportsByVehicleId } = useActiveReports();
   const line = linesByGtfsId.get(vehicle.routeGtfsId);
@@ -144,15 +144,7 @@ export default function VehiclePopup({ vehicle, timeline, loading, onClose, curr
   const nextStop = timeline?.stops.find((s) => s.status === 'next') ?? null;
 
   return (
-    <Popup
-      position={[vehicle.lat, vehicle.lng]}
-      className="transit-popup vehicle-popup"
-      closeButton={false}
-      offset={[0, -14]}
-      autoPan={false}
-      eventHandlers={{ remove: onClose }}
-    >
-      <div style={{ width: 248, fontFamily: "'Inter', system-ui, sans-serif" }}>
+      <div style={{ fontFamily: "'Inter', system-ui, sans-serif" }}>
         {/* Header */}
         <div
           style={{
@@ -399,6 +391,20 @@ export default function VehiclePopup({ vehicle, timeline, loading, onClose, curr
           </div>
         )}
       </div>
+  );
+}
+
+export default function VehiclePopup({ vehicle, timeline, loading, onClose, currentUserId }: VehiclePopupProps) {
+  return (
+    <Popup
+      position={[vehicle.lat, vehicle.lng]}
+      className="transit-popup vehicle-popup"
+      closeButton={false}
+      offset={[0, -14]}
+      autoPan={false}
+      eventHandlers={{ remove: onClose }}
+    >
+      <VehiclePopupContent vehicle={vehicle} timeline={timeline} loading={loading} onClose={onClose} currentUserId={currentUserId} />
     </Popup>
   );
 }
