@@ -2,6 +2,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { VehiclePosition, isValidSofiaCoord } from '../interfaces/gtfs.types';
 import { GtfsStaticService } from './gtfs-static.service';
+import { InjectMetric } from '@willsoto/nestjs-prometheus';
+import { Counter, Gauge } from 'prom-client';
 
 import * as GtfsRealtimeBindings from 'gtfs-realtime-bindings';
 
@@ -31,13 +33,20 @@ export class GtfsRealtimeService {
   // tripId → routeId from RT feed (for RT-only trip injection)
   private tripRouteIds = new Map<string, string>();
 
-  constructor(private readonly gtfsStaticService: GtfsStaticService) {}
+  constructor(
+    private readonly gtfsStaticService: GtfsStaticService,
+    @InjectMetric('gtfs_vehicles_tracked')
+    private readonly vehiclesTrackedGauge: Gauge,
+    @InjectMetric('gtfs_realtime_poll_errors_total')
+    private readonly pollErrorsCounter: Counter,
+  ) {}
 
   @Interval(10000)
   async pollVehiclePositions() {
     try {
       const response = await fetch(VEHICLE_POSITIONS_URL);
       if (!response.ok) {
+        this.pollErrorsCounter.inc();
         this.logger.error(`Vehicle positions feed HTTP ${response.status}`);
         return;
       }
@@ -97,8 +106,10 @@ export class GtfsRealtimeService {
         }
       }
 
+      this.vehiclesTrackedGauge.set(this.vehicles.size);
       this.logger.debug(`Tracking ${this.vehicles.size} vehicles`);
     } catch (error) {
+      this.pollErrorsCounter.inc();
       this.logger.error(
         `Failed to poll vehicle positions: ${(error as Error).message}`,
       );
@@ -110,6 +121,7 @@ export class GtfsRealtimeService {
     try {
       const response = await fetch(TRIP_UPDATES_URL);
       if (!response.ok) {
+        this.pollErrorsCounter.inc();
         this.logger.error(`Trip updates feed HTTP ${response.status}`);
         return;
       }
@@ -151,6 +163,7 @@ export class GtfsRealtimeService {
         `Loaded predictions for ${this.tripPredictions.size} trips`,
       );
     } catch (error) {
+      this.pollErrorsCounter.inc();
       this.logger.error(
         `Failed to poll trip updates: ${(error as Error).message}`,
       );
