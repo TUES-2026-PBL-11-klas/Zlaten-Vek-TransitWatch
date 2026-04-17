@@ -4,14 +4,9 @@ import {
   IUserRepository,
   USER_REPOSITORY,
 } from './interfaces/user-repository.interface';
+import { UserProfileDto } from './dto/user-profile.dto';
 
-export interface UserProfileDto {
-  id: string;
-  email: string;
-  credibilityScore: number;
-  reportCount: number;
-  createdAt: Date;
-}
+export { UserProfileDto };
 
 @Injectable()
 export class UserService {
