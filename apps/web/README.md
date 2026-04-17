@@ -1,73 +1,85 @@
-# React + TypeScript + Vite
+# TransitWatch Web
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React frontend for TransitWatch Sofia — a map-first UI where passengers report and view real-time transit issues on a Leaflet map.
 
-Currently, two official plugins are available:
+## Tech Stack
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- **Framework:** React 18 (TypeScript) + Vite
+- **Styling:** Tailwind CSS v4
+- **Components:** shadcn/ui + Base UI
+- **Map:** Leaflet + react-leaflet
+- **Auth:** Supabase JS client
+- **HTTP:** Axios
+- **Icons:** Lucide React
 
-## React Compiler
+## Getting Started
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+From the repo root, copy `.env.example` to `.env` and fill in your Supabase credentials. Then:
 
-## Expanding the ESLint configuration
+```bash
+# Install dependencies (from repo root)
+npm install
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+# Start dev server
+cd apps/web && npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+The app starts on **http://localhost:5173**.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## Scripts
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+| Script | Description |
+|---|---|
+| `npm run dev` | Start Vite dev server with HMR |
+| `npm run build` | Type-check + production build to `dist/` |
+| `npm run preview` | Preview the production build locally |
+| `npm run lint` | Run ESLint |
+
+## Environment Variables
+
+| Variable | Description |
+|---|---|
+| `VITE_API_URL` | Backend API base URL (e.g. `http://localhost:3000`) |
+| `VITE_SUPABASE_URL` | Supabase project URL |
+| `VITE_SUPABASE_ANON_KEY` | Supabase anon/public key |
+
+> All `VITE_*` variables are inlined at build time. Do not put secrets here.
+
+## Source Structure
+
 ```
+src/
+├── assets/       # Static images and icons
+├── components/   # Reusable UI components (map, cards, nav, modals)
+├── contexts/     # React contexts (AuthContext, etc.)
+├── hooks/        # Custom hooks (useReports, useMap, etc.)
+├── lib/          # API client, Supabase client, utilities
+├── pages/        # Route-level page components
+├── types/        # Shared TypeScript types
+├── App.tsx       # Root component with router
+└── main.tsx      # Entry point
+```
+
+## Key Concepts
+
+**Map-first layout** — the Leaflet map is always the primary element. Report markers are rendered as custom icons color-coded by category. Clicking a marker opens a bottom sheet (mobile) or popup (desktop).
+
+**Auth flow** — Supabase handles email/password auth. `AuthContext` exposes the current user and session. Protected routes redirect unauthenticated users to `/login`. No anonymous reports are allowed.
+
+**Report categories** — each category has a distinct icon and auto-expiry time (20–60 min). The frontend shows only active (non-expired) reports fetched from the API.
+
+## Adding a New Page
+
+1. Create `src/pages/YourPage.tsx`
+2. Add a route in `App.tsx`
+3. If the page requires auth, wrap it with the auth guard pattern used by existing protected routes
+
+## Building for Production
+
+```bash
+cd apps/web
+npm run build
+# Output is in dist/ — served by Nginx in Docker
+```
+
+The `Dockerfile` in this directory builds a multi-stage image: Vite build → Nginx static server.
