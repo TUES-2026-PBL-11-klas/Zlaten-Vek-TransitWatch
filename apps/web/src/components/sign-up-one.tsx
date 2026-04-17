@@ -41,7 +41,7 @@ export default function SignUpOne() {
     }
 
     return (
-        <section className="flex min-h-screen flex-col items-center justify-center bg-background px-4">
+        <section className="flex h-full flex-col items-center justify-center bg-background px-4 overflow-y-auto">
             <div className="w-full max-w-md">
                 <div className="mb-8 text-center">
                     <h1 className="text-2xl font-bold tracking-tight text-foreground">TransitWatch</h1>
@@ -56,7 +56,7 @@ export default function SignUpOne() {
                     )}
 
                     <form onSubmit={handleSubmit} className="space-y-5">
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div className="space-y-2">
                                 <Label htmlFor="firstName" className="text-sm font-semibold text-foreground">
                                     First name

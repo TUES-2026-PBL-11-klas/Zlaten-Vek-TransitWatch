@@ -33,7 +33,7 @@ export default function LoginOne() {
     }
 
     return (
-        <section className="flex min-h-screen flex-col items-center justify-center bg-background px-4">
+        <section className="flex h-full flex-col items-center justify-center bg-background px-4 overflow-y-auto">
             <div className="w-full max-w-md">
                 <div className="mb-8 text-center">
                     <h1 className="text-2xl font-bold tracking-tight text-foreground">TransitWatch</h1>

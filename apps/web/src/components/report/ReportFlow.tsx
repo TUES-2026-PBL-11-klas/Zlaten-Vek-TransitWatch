@@ -143,9 +143,12 @@ export default function ReportFlow({ userLocation, onClose, onSuccess }: ReportF
                   background: 'none',
                   border: 'none',
                   cursor: 'pointer',
-                  padding: 4,
-                  color: '#6B7280',
+                  minWidth: 44,
+                  minHeight: 44,
                   display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#6B7280',
                 }}
               >
                 <ChevronLeft size={20} />
@@ -159,8 +162,8 @@ export default function ReportFlow({ userLocation, onClose, onSuccess }: ReportF
               background: '#F3F4F6',
               border: 'none',
               cursor: 'pointer',
-              width: 28,
-              height: 28,
+              width: 44,
+              height: 44,
               borderRadius: '50%',
               display: 'flex',
               alignItems: 'center',
@@ -170,7 +173,7 @@ export default function ReportFlow({ userLocation, onClose, onSuccess }: ReportF
               padding: 0,
             }}
           >
-            <X size={14} />
+            <X size={18} />
           </button>
         </div>
 
@@ -437,10 +440,10 @@ function DetailsStep({
               onClick={onRemovePhoto}
               style={{
                 position: 'absolute',
-                top: -6,
-                right: -6,
-                width: 22,
-                height: 22,
+                top: -12,
+                right: -12,
+                width: 44,
+                height: 44,
                 borderRadius: '50%',
                 background: '#DC2626',
                 color: '#fff',
@@ -453,7 +456,7 @@ function DetailsStep({
                 padding: 0,
               }}
             >
-              <X size={12} />
+              <X size={16} />
             </button>
           </div>
         ) : (

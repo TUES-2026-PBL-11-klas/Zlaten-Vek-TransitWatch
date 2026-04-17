@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 export interface UserLocation {
   lat: number;
@@ -9,19 +9,24 @@ export interface UserLocation {
 interface UseUserLocationResult {
   location: UserLocation | null;
   error: string | null;
+  /** Request geolocation — must be called from a user gesture for Safari iOS. */
+  requestLocation: () => void;
 }
-
-const GEO_UNSUPPORTED = !navigator.geolocation;
 
 export function useUserLocation(): UseUserLocationResult {
   const [location, setLocation] = useState<UserLocation | null>(null);
-  const [error, setError] = useState<string | null>(
-    GEO_UNSUPPORTED ? 'Геолокацията не се поддържа от браузъра.' : null,
-  );
+  const [error, setError] = useState<string | null>(null);
   const watchIdRef = useRef<number | null>(null);
 
-  useEffect(() => {
-    if (GEO_UNSUPPORTED) return;
+  const requestLocation = useCallback(() => {
+    if (!navigator.geolocation) {
+      setError('Геолокацията не се поддържа от браузъра.');
+      return;
+    }
+
+    if (watchIdRef.current !== null) {
+      navigator.geolocation.clearWatch(watchIdRef.current);
+    }
 
     watchIdRef.current = navigator.geolocation.watchPosition(
       (pos) => {
@@ -43,7 +48,9 @@ export function useUserLocation(): UseUserLocationResult {
       },
       { enableHighAccuracy: true, maximumAge: 10_000, timeout: 15_000 },
     );
+  }, []);
 
+  useEffect(() => {
     return () => {
       if (watchIdRef.current !== null) {
         navigator.geolocation.clearWatch(watchIdRef.current);
@@ -51,5 +58,5 @@ export function useUserLocation(): UseUserLocationResult {
     };
   }, []);
 
-  return { location, error };
+  return { location, error, requestLocation };
 }

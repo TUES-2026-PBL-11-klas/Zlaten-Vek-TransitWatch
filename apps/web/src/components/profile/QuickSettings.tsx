@@ -1,26 +1,7 @@
 import { useState } from 'react';
 import { SlidersHorizontal, Bus, Clock } from 'lucide-react';
-
-interface MapSettings {
-  showVehicles: boolean;
-  showStopTimes: boolean;
-}
-
-const STORAGE_KEY = 'tw_map_settings';
-
-function loadSettings(): MapSettings {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return JSON.parse(raw) as MapSettings;
-  } catch {
-    // ignore
-  }
-  return { showVehicles: false, showStopTimes: false };
-}
-
-function saveSettings(settings: MapSettings) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
-}
+import { loadMapSettings, saveMapSettings } from '../../lib/map-settings';
+import type { MapSettings } from '../../lib/map-settings';
 
 function Toggle({
   checked,
@@ -89,12 +70,12 @@ function SettingRow({ icon, label, description, checked, onChange }: ToggleRowPr
 }
 
 export default function QuickSettings() {
-  const [settings, setSettings] = useState<MapSettings>(loadSettings);
+  const [settings, setSettings] = useState<MapSettings>(loadMapSettings);
 
   function toggle(key: keyof MapSettings) {
     const next = { ...settings, [key]: !settings[key] };
     setSettings(next);
-    saveSettings(next);
+    saveMapSettings(next);
   }
 
   return (

@@ -18,7 +18,7 @@
   background: #ffffff;
   border-radius: 16px 16px 0 0;
   box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.15);
-  max-height: 50vh;
+  max-height: 60vh;
   overflow-y: auto;
   overscroll-behavior: contain;
 }
@@ -28,7 +28,24 @@
   height: 4px;
   background: #e5e7eb;
   border-radius: 2px;
-  margin: 12px auto 0;
+  margin: 8px auto 0;
+}
+
+.panel-header {
+  position: sticky;
+  top: 0;
+  background: #ffffff;
+  z-index: 1;
+}
+
+@media (max-width: 767px) {
+  .panel-container {
+    bottom: 0;
+  }
+
+  .panel {
+    padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px));
+  }
 }
 
 @media (min-width: 768px) {
