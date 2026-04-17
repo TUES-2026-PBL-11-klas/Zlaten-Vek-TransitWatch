@@ -28,7 +28,7 @@
   height: 4px;
   background: #e5e7eb;
   border-radius: 2px;
-  margin: 12px auto 0;
+  margin: 8px auto 0;
 }
 
 .panel-header {
@@ -40,7 +40,11 @@
 
 @media (max-width: 767px) {
   .panel-container {
-    bottom: calc(56px + env(safe-area-inset-bottom, 0px));
+    bottom: 0;
+  }
+
+  .panel {
+    padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px));
   }
 }
 

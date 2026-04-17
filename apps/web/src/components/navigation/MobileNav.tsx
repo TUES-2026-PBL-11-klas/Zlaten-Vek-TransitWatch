@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Map, Flag, UserCircle, LogIn } from 'lucide-react';
+import { Map, UserCircle, LogIn } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { cn } from '../../lib/utils';
 
@@ -16,10 +16,6 @@ export default function MobileNav() {
     <nav className="md:hidden z-[1002] bg-white border-t border-gray-200 flex-shrink-0 pb-[env(safe-area-inset-bottom)]">
       <div className="flex items-center justify-around h-14 px-2">
         <Tab to="/" icon={<Map size={20} />} label="Map" active={pathname === '/'} />
-
-        {user && (
-          <Tab to="/" icon={<Flag size={20} />} label="Report" active={false} />
-        )}
 
         {user ? (
           <Tab

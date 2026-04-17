@@ -215,8 +215,8 @@
 
 .locate-me-btn {
   position: absolute;
-  bottom: 24px;
-  left: 16px;
+  bottom: 80px; /* 24px FAB bottom + 44px FAB height + 12px gap */
+  right: 16px;
   z-index: 1001;
   background: #FFFFFF;
   color: #374151;
@@ -480,9 +480,12 @@
 
 @media (max-width: 767px) {
   .report-fab,
-  .locate-me-btn,
   .recenter-btn {
-    bottom: 80px; /* 56px tab bar + 24px original spacing */
+    bottom: calc(56px + env(safe-area-inset-bottom, 0px) + 4px);
+  }
+
+  .locate-me-btn {
+    bottom: calc(56px + env(safe-area-inset-bottom, 0px) + 4px + 44px + 8px);
   }
 
   /* Zoom controls — 44px touch targets (WCAG 2.5.8) */

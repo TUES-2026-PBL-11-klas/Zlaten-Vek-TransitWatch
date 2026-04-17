@@ -8,7 +8,7 @@ import StopMarkers from '../components/map/StopMarkers';
 import VehicleMarkers from '../components/map/VehicleMarkers';
 import RouteOverlay from '../components/map/RouteOverlay';
 import MapController from '../components/map/MapController';
-import VehiclePopup, { VehiclePopupContent } from '../components/map/VehiclePopup';
+import VehiclePopup from '../components/map/VehiclePopup';
 import StopPopup, { StopPopupContent } from '../components/map/StopPopup';
 import MobileBottomSheet from '../components/map/MobileBottomSheet';
 import { useIsMobile } from '../hooks/useIsMobile';
@@ -55,8 +55,10 @@ interface MapLayersProps {
   tripTimeline: ReturnType<typeof useTripTimeline>;
   onFollowChange: (following: boolean) => void;
   userLocation: { lat: number; lng: number; accuracy: number } | null;
+  requestLocation: () => void;
   currentUserId: string | null;
   isMobile: boolean;
+  hideControls: boolean;
 }
 
 function MapLayers({
@@ -69,8 +71,10 @@ function MapLayers({
   tripTimeline,
   onFollowChange,
   userLocation,
+  requestLocation,
   currentUserId,
   isMobile,
+  hideControls,
 }: MapLayersProps) {
   return (
     <>
@@ -84,7 +88,7 @@ function MapLayers({
       )}
 
       {userLocation && <UserLocationMarker location={userLocation} />}
-      <LocateMeButton location={userLocation} />
+      {!hideControls && <LocateMeButton location={userLocation} requestLocation={requestLocation} />}
 
       <StopMarkers
         onStopSelect={onStopSelect}
@@ -125,7 +129,7 @@ export default function MapPage() {
   }, []);
 
   const tripTimeline = useTripTimeline(selectedVehicle?.vehicleId ?? null);
-  const { location: userLocation, error: locationError } = useUserLocation();
+  const { location: userLocation, error: locationError, requestLocation } = useUserLocation();
 
   // Show toast on location error
   useEffect(() => {
@@ -183,23 +187,15 @@ export default function MapPage() {
             tripTimeline={tripTimeline}
             onFollowChange={handleFollowChange}
             userLocation={userLocation}
+            requestLocation={requestLocation}
             currentUserId={user?.id ?? null}
             isMobile={isMobile}
+            hideControls={isMobile && !!(selectedStop || selectedVehicle)}
           />
         </MapContainer>
 
         {/* Mobile bottom sheets — popups rendered outside MapContainer on phones */}
-        {selectedVehicle && isMobile && (
-          <MobileBottomSheet onClose={handleDeselect}>
-            <VehiclePopupContent
-              vehicle={selectedVehicle}
-              timeline={tripTimeline.timeline}
-              loading={tripTimeline.loading}
-              onClose={handleDeselect}
-              currentUserId={user?.id ?? null}
-            />
-          </MobileBottomSheet>
-        )}
+        {/* Vehicle popup skipped on mobile — TripTimelinePanel already shows the route */}
 
         {selectedStop && isMobile && (
           <MobileBottomSheet onClose={handleDeselect}>
@@ -226,8 +222,8 @@ export default function MapPage() {
           />
         )}
 
-        {/* Report FAB — visible when authenticated and location available */}
-        {user && userLocation && !showReportFlow && (
+        {/* Report FAB — hidden when a panel is open on mobile */}
+        {user && userLocation && !showReportFlow && !(isMobile && (selectedStop || selectedVehicle)) && (
           <ReportFAB onClick={() => setShowReportFlow(true)} />
         )}
 
