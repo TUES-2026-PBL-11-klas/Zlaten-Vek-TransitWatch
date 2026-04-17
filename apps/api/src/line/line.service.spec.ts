@@ -4,8 +4,6 @@ import { LineService } from './line.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ReportService } from '../report/report.service';
 
-const mockLine = { id: 'line-1', findMany: jest.fn(), findUnique: jest.fn() };
-
 const mockPrisma = {
   line: {
     findMany: jest.fn(),
