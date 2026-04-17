@@ -1,13 +1,160 @@
 import { useEffect, useRef, useState } from 'react';
 import { TRANSIT_COLORS } from '../../types/transit';
 import { useSwipeToDismiss } from '../../hooks/useSwipeToDismiss';
-import type { TripTimeline, TripTimelineStop } from '../../types/transit';
+import { useActiveReports, triggerReportsRefetch } from '../../hooks/useActiveReports';
+import { getCredibilityTier, UNVERIFIED_THRESHOLD } from '../../lib/credibility';
+import { transitApi } from '../../lib/transit-api';
+import type { TripTimeline, TripTimelineStop, ActiveReport } from '../../types/transit';
 import './panels.css';
+
+const CATEGORY_ICONS: Record<string, string> = {
+  VEHICLE_ISSUE: '🚨',
+  TRAFFIC: '⏱️',
+  INSPECTORS: '🎫',
+  SAFETY: '⚠️',
+  OTHER: 'ℹ️',
+};
+
+const CATEGORY_LABELS: Record<string, string> = {
+  VEHICLE_ISSUE: 'Повреда',
+  TRAFFIC: 'Трафик',
+  INSPECTORS: 'Контрольори',
+  SAFETY: 'Безопасност',
+  OTHER: 'Друго',
+};
+
+function timeRemaining(expiresAt: string): string {
+  const diff = new Date(expiresAt).getTime() - Date.now();
+  if (diff <= 0) return 'изтекъл';
+  const mins = Math.ceil(diff / 60_000);
+  return `${mins} мин`;
+}
+
+function ReportVoteControls({ report, canVote }: { report: ActiveReport; canVote: boolean }) {
+  const [confirms, setConfirms] = useState(report.confirms ?? 0);
+  const [disputes, setDisputes] = useState(report.disputes ?? 0);
+  const [userVote, setUserVote] = useState<'confirm' | 'dispute' | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function vote(type: 'confirm' | 'dispute') {
+    if (busy || userVote) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await transitApi.voteOnReport(report.id, type);
+      setConfirms(res.counts.confirms);
+      setDisputes(res.counts.disputes);
+      setUserVote(type);
+      triggerReportsRefetch();
+    } catch (err: unknown) {
+      const status = (err as { response?: { status?: number } })?.response?.status;
+      if (status === 409) setUserVote(type);
+      else if (status === 403) setError('Не може да гласувате за свой доклад');
+      else setError('Грешка при гласуване');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const btnStyle = (active: boolean, color: string): React.CSSProperties => ({
+    background: active ? color : '#F9FAFB',
+    color: active ? '#FFFFFF' : '#6B7280',
+    border: `1px solid ${active ? color : '#E5E7EB'}`,
+    borderRadius: 6,
+    padding: '2px 8px',
+    fontSize: 12,
+    fontWeight: 600,
+    cursor: canVote && !userVote && !busy ? 'pointer' : 'default',
+    opacity: !canVote ? 0.6 : 1,
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 3,
+    lineHeight: 1,
+    minHeight: 28,
+  });
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+      <button type="button" onClick={() => canVote && vote('confirm')} disabled={!canVote || !!userVote || busy} style={btnStyle(userVote === 'confirm', '#16A34A')} aria-label="Потвърди">
+        ↑ {confirms}
+      </button>
+      <button type="button" onClick={() => canVote && vote('dispute')} disabled={!canVote || !!userVote || busy} style={btnStyle(userVote === 'dispute', '#DC2626')} aria-label="Оспори">
+        ↓ {disputes}
+      </button>
+      {error && <span style={{ fontSize: 10, color: '#DC2626' }}>{error}</span>}
+    </div>
+  );
+}
+
+function ReportsSection({ vehicleId, currentUserId }: { vehicleId: string; currentUserId: string | null }) {
+  const { reportsByVehicleId } = useActiveReports();
+  const rawReports = reportsByVehicleId.get(vehicleId) ?? [];
+  const reports = rawReports.filter((r) => r.status !== 'hidden');
+
+  if (reports.length === 0) return null;
+
+  return (
+    <div style={{ borderTop: '1px solid #F3F4F6' }}>
+      <div style={{ padding: '10px 20px 6px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+          Доклади
+        </span>
+        <span style={{ fontSize: 10, fontWeight: 700, color: '#DC2626', background: '#FEF2F2', padding: '2px 8px', borderRadius: 10 }}>
+          {reports.length}
+        </span>
+      </div>
+      <div style={{ padding: '0 20px 12px', display: 'flex', flexDirection: 'column', gap: 0 }}>
+        {reports.map((report) => {
+          const tier = getCredibilityTier(report.user?.credibilityScore ?? 0);
+          const unverified = (report.user?.credibilityScore ?? 0) < UNVERIFIED_THRESHOLD;
+          return (
+            <div key={report.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '8px 0', borderBottom: '1px solid #F9FAFB' }}>
+              <span style={{ fontSize: 16, flexShrink: 0, marginTop: 1 }}>{CATEGORY_ICONS[report.category] ?? 'ℹ️'}</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>
+                    {CATEGORY_LABELS[report.category] ?? report.category}
+                  </span>
+                  <span style={{ fontSize: 10, fontWeight: 600, color: tier.color, backgroundColor: tier.background, padding: '1px 6px', borderRadius: 999 }}>
+                    {tier.label}
+                  </span>
+                  {unverified && (
+                    <span style={{ fontSize: 10, fontWeight: 500, color: '#9CA3AF', border: '1px solid #E5E7EB', padding: '1px 5px', borderRadius: 999 }}>
+                      Непотвърден
+                    </span>
+                  )}
+                  {report.status === 'verified' && (
+                    <span style={{ fontSize: 10, fontWeight: 600, color: '#2563EB', backgroundColor: '#EFF6FF', padding: '1px 6px', borderRadius: 999 }}>
+                      ✓ Потвърден
+                    </span>
+                  )}
+                </div>
+                {report.description && (
+                  <div style={{ fontSize: 12, color: '#6B7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 2 }}>
+                    {report.description}
+                  </div>
+                )}
+                <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 2 }}>{timeRemaining(report.expiresAt)}</div>
+                <ReportVoteControls report={report} canVote={!!currentUserId && currentUserId !== report.userId} />
+              </div>
+              {report.photoUrl && (
+                <img src={report.photoUrl} alt="" style={{ width: 36, height: 36, objectFit: 'cover', borderRadius: 8, flexShrink: 0 }} />
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 interface TripTimelinePanelProps {
   timeline: TripTimeline | null;
   loading?: boolean;
   onClose: () => void;
+  vehicleId?: string | null;
+  currentUserId?: string | null;
 }
 
 const TYPE_LABELS: Record<string, string> = {
@@ -122,7 +269,7 @@ function NextStopHero({ nextStop, loading }: { nextStop: TripTimelineStop | null
   );
 }
 
-export default function TripTimelinePanel({ timeline, loading, onClose }: TripTimelinePanelProps) {
+export default function TripTimelinePanel({ timeline, loading, onClose, vehicleId, currentUserId }: TripTimelinePanelProps) {
   const [open, setOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
   const nextStopRef = useRef<HTMLDivElement>(null);
@@ -236,6 +383,9 @@ export default function TripTimelinePanel({ timeline, loading, onClose }: TripTi
 
           {/* ── Next stop hero (sticky with header) ────────── */}
           <NextStopHero nextStop={nextStop} loading={!!(loading || !timeline)} />
+
+          {/* ── Reports (sticky with header) ─────────────── */}
+          {vehicleId && <ReportsSection vehicleId={vehicleId} currentUserId={currentUserId ?? null} />}
         </div>
 
         {/* ── Loading skeleton for timeline ──────────────────── */}

@@ -60,7 +60,7 @@ export default function IdentityCard() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
+    supabase.auth.getUser().then(async ({ data }) => {
       const user = data.user;
       if (!user) return;
 
@@ -70,9 +70,13 @@ export default function IdentityCard() {
       );
       setIsAnonymous(user.user_metadata?.is_anonymous ?? false);
 
-      const existingId =
-        user.user_metadata?.anonymous_id ?? generateAnonymousId();
-      setAnonymousId(existingId);
+      if (user.user_metadata?.anonymous_id) {
+        setAnonymousId(user.user_metadata.anonymous_id);
+      } else {
+        const newId = generateAnonymousId();
+        setAnonymousId(newId);
+        await supabase.auth.updateUser({ data: { anonymous_id: newId } });
+      }
     });
   }, []);
 

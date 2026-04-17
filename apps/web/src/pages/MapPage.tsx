@@ -4,6 +4,7 @@ import L from 'leaflet';
 import { useState, useEffect, useCallback } from 'react';
 import { MapContainer, TileLayer, useMapEvents } from 'react-leaflet';
 import { useAuth } from '../contexts/AuthContext';
+import { loadMapSettings } from '../lib/map-settings';
 import StopMarkers from '../components/map/StopMarkers';
 import VehicleMarkers from '../components/map/VehicleMarkers';
 import RouteOverlay from '../components/map/RouteOverlay';
@@ -59,6 +60,8 @@ interface MapLayersProps {
   currentUserId: string | null;
   isMobile: boolean;
   hideControls: boolean;
+  showVehicles: boolean;
+  showStopTimes: boolean;
 }
 
 function MapLayers({
@@ -75,6 +78,8 @@ function MapLayers({
   currentUserId,
   isMobile,
   hideControls,
+  showVehicles,
+  showStopTimes,
 }: MapLayersProps) {
   return (
     <>
@@ -90,14 +95,18 @@ function MapLayers({
       {userLocation && <UserLocationMarker location={userLocation} />}
       {!hideControls && <LocateMeButton location={userLocation} requestLocation={requestLocation} />}
 
-      <StopMarkers
-        onStopSelect={onStopSelect}
-        selectedStopId={selectedStop?.id ?? null}
-      />
-      <VehicleMarkers
-        onVehicleSelect={onVehicleSelect}
-        selectedVehicleId={selectedVehicle?.vehicleId ?? null}
-      />
+      {showStopTimes && (
+        <StopMarkers
+          onStopSelect={onStopSelect}
+          selectedStopId={selectedStop?.id ?? null}
+        />
+      )}
+      {showVehicles && (
+        <VehicleMarkers
+          onVehicleSelect={onVehicleSelect}
+          selectedVehicleId={selectedVehicle?.vehicleId ?? null}
+        />
+      )}
       <MapClickHandler onMapClick={onMapClick} />
 
       {selectedVehicle && !isMobile && (
@@ -123,6 +132,7 @@ export default function MapPage() {
   const [isFollowing, setIsFollowing] = useState(false);
   const [showReportFlow, setShowReportFlow] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const mapSettings = loadMapSettings();
 
   const handleFollowChange = useCallback((following: boolean) => {
     setIsFollowing(following);
@@ -191,6 +201,8 @@ export default function MapPage() {
             currentUserId={user?.id ?? null}
             isMobile={isMobile}
             hideControls={isMobile && !!(selectedStop || selectedVehicle)}
+            showVehicles={mapSettings.showVehicles}
+            showStopTimes={mapSettings.showStopTimes}
           />
         </MapContainer>
 
@@ -219,6 +231,8 @@ export default function MapPage() {
             timeline={tripTimeline.timeline}
             loading={tripTimeline.loading}
             onClose={handleDeselect}
+            vehicleId={selectedVehicle.vehicleId}
+            currentUserId={user?.id ?? null}
           />
         )}
 
