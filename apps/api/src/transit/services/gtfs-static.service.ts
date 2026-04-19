@@ -2,7 +2,6 @@ import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import AdmZip from 'adm-zip';
 import { parseGtfsCsv } from '../utils/gtfs-parser';
-import { DisposableTimer } from '../../metrics/disposable-timer';
 import { simplifyPolyline } from '../utils/polyline-simplifier';
 import {
   GtfsStop,
@@ -101,7 +100,7 @@ export class GtfsStaticService implements OnModuleInit {
     lines: number;
     shapes: number;
   }> {
-    const timer = new DisposableTimer(this.importDurationHistogram);
+    const endTimer = this.importDurationHistogram.startTimer();
 
     try {
       this.logger.log(
@@ -175,7 +174,7 @@ export class GtfsStaticService implements OnModuleInit {
         shapes: shapesImported,
       };
     } finally {
-      timer.dispose();
+      endTimer();
     }
   }
 
