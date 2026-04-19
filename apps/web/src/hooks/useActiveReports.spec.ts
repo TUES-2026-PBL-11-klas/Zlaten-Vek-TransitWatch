@@ -32,7 +32,7 @@ function makeReport(id: string, lineId: string, vehicleId?: string): ActiveRepor
 /** Flush all pending promises and settled microtasks */
 async function flushPromises() {
   await act(async () => {
-    await new Promise((r) => setTimeout(r, 0));
+    await Promise.resolve();
   });
 }
 
@@ -60,7 +60,7 @@ describe('useActiveReports', () => {
     const { result } = renderHook(() => useActiveReports());
 
     await act(async () => {
-      vi.runAllTimers();
+      vi.advanceTimersByTime(0);
       await flushPromises();
     });
 
@@ -74,7 +74,7 @@ describe('useActiveReports', () => {
     const { result } = renderHook(() => useActiveReports());
 
     await act(async () => {
-      vi.runAllTimers();
+      vi.advanceTimersByTime(0);
       await flushPromises();
     });
 
@@ -88,7 +88,7 @@ describe('useActiveReports', () => {
     const { result } = renderHook(() => useActiveReports());
 
     await act(async () => {
-      vi.runAllTimers();
+      vi.advanceTimersByTime(0);
       await flushPromises();
     });
 
@@ -101,7 +101,7 @@ describe('useActiveReports', () => {
     const { result } = renderHook(() => useActiveReports());
 
     await act(async () => {
-      vi.runAllTimers();
+      vi.advanceTimersByTime(0);
       await flushPromises();
     });
 
@@ -113,7 +113,7 @@ describe('useActiveReports', () => {
     const { result } = renderHook(() => useActiveReports());
 
     await act(async () => {
-      vi.runAllTimers();
+      vi.advanceTimersByTime(0);
       await flushPromises();
     });
 
@@ -126,7 +126,7 @@ describe('useActiveReports', () => {
     renderHook(() => useActiveReports());
 
     await act(async () => {
-      vi.runAllTimers();
+      vi.advanceTimersByTime(0);
       await flushPromises();
     });
     const callCount = mockGetActiveReports.mock.calls.length;
@@ -144,7 +144,7 @@ describe('useActiveReports', () => {
     renderHook(() => useActiveReports());
 
     await act(async () => {
-      vi.runAllTimers();
+      vi.advanceTimersByTime(0);
       await flushPromises();
     });
     const callCount = mockGetActiveReports.mock.calls.length;
@@ -165,7 +165,7 @@ describe('useActiveReports', () => {
     const { unmount } = renderHook(() => useActiveReports());
 
     await act(async () => {
-      vi.runAllTimers();
+      vi.advanceTimersByTime(0);
       await flushPromises();
     });
 

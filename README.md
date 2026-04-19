@@ -1,199 +1,242 @@
-# TransitWatch Sofia 
+# TransitWatch Sofia
 
-> **Work in Progress** — Development ongoing for ПБО (School Project) 2025–2026
+**TransitWatch Sofia** е crowdsourced уеб приложение за сигнали в реално време за градския транспорт в София.
 
-Real-time crowdsourced reporting for Sofia's public transit. Report issues, verify them, and help other passengers stay informed before boarding.
+**Решаван проблем:** Пътниците нямат бърз peer-to-peer канал за информация за текущи проблеми (закъснения, контрольори, претоварване, повреди) преди да се качат. Съществуващите инструменти (ЦГМ, Moovit, Facebook групи) или не са real-time, или не са структурирани, или информацията не достига до другите пътници. TransitWatch запълва тази празнина — потребителите докладват проблеми директно, а останалите ги виждат веднага на интерактивна карта, заедно с реални GPS позиции на превозните средства и разписания на спирките от официалния GTFS feed на Столична агенция за транспорт.
 
-**Think Waze, but for buses, trams, and the metro.**
+---
 
-## What is it?
+## Архитектурна диаграма
 
-TransitWatch is a web app where Sofia transit users can:
-- **Report problems** — broken AC, delays, overcrowding, inspectors, safety issues
-- **See reports in real-time** on an interactive map
-- **Verify or dispute** reports from other users
-- **Follow favorite lines** and get notified about verified issues
+![Инфраструктурна диаграма](docs/infrastructure-diagram.png)
 
-Reports auto-expire based on category, and the community decides what's real through voting.
+> Потребителят достига системата чрез Traefik Ingress → React frontend (Nginx, 2 replicas) и NestJS API (3 replicas, HPA). API комуникира с Supabase PostgreSQL, GTFS feeds от Sofia Traffic и Prometheus. CI/CD: GitHub Actions → GHCR → ArgoCD автоматично синхронизира K8s манифестите.
 
-### Why TransitWatch?
+Допълнителни диаграми:
+- [ER диаграма](docs/database-diagram.png)
+- [UML Class диаграма](docs/uml-diagram.png)
 
-| Solution | What it offers | What's missing |
-|---|---|---|
-| CGM (City Mobility Center) | Official complaint channel | Takes days, doesn't reach other passengers |
-| Google Maps / Moovit | Schedules, routes, GPS delays | No real-time crowdsourced reports |
-| Facebook groups / Twitter | People share problems sometimes | No structure, no map, slow |
-| **TransitWatch** ✓ | **Real-time peer reports, map, voting, auto-expire** | **Solves all of the above** |
+---
 
-## Local Development (Docker)
+## Инструкции за стартиране
 
-Start the full stack with a single command:
+### Предварителни изисквания
+
+- Node.js 20+ (или 22)
+- Docker и Docker Compose
+- Supabase проект (безплатен tier)
+
+### Стъпка 1: Клониране на хранилището
 
 ```bash
-# 1. Copy environment variables
-cp .env.example .env
-
-# 2. Start all services
-docker-compose up
+git clone https://github.com/tues-2026-pbl-11-klas/Zlaten-Vek-TransitWatch.git
+cd Zlaten-Vek-TransitWatch
 ```
 
-This spins up:
-- **API** at http://localhost:3000 (NestJS)
-- **Frontend** at http://localhost:5173 (React + Vite with hot reload)
+### Стъпка 2: Конфигурация на environment
 
-Health check: http://localhost:3000/health
+```bash
+cp .env.example .env
+```
 
-To rebuild after dependency changes:
+Попълни нужните стойности в `.env`:
+
+| Променлива | Описание |
+|---|---|
+| `DATABASE_URL` | Prisma connection string към Supabase PostgreSQL |
+| `SUPABASE_URL` | URL на Supabase проекта |
+| `SUPABASE_JWT_SECRET` | JWT secret от Supabase Dashboard |
+| `VITE_SUPABASE_URL` | Supabase URL за frontend |
+| `VITE_SUPABASE_ANON_KEY` | Anon key за frontend |
+
+### Вариант A: Стартиране с Docker (препоръчително)
+
 ```bash
 docker-compose up --build
 ```
 
-To reset the database:
-```bash
-docker-compose down -v
-```
-
-## Local Kubernetes (K3s via k3d)
-
-Use this to run the full stack on a local K3s cluster, matching the production environment.
-
-### Prerequisites
-
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/) running
-- [k3d](https://k3d.io/) — `brew install k3d`
-- [kubectl](https://kubernetes.io/docs/tasks/tools/) — `brew install kubectl`
-
-### 1. Create the cluster
-
-```bash
-k3d cluster create transitwatch \
-  --port "80:80@loadbalancer" \
-  --port "443:443@loadbalancer"
-```
-
-Verify it's ready:
-
-```bash
-kubectl get nodes
-# NAME                        STATUS   ROLES                  AGE   VERSION
-# k3d-transitwatch-server-0   Ready    control-plane,master   ...   v1.x
-```
-
-### 2. Apply the namespace
-
-```bash
-kubectl apply -f k8s/namespace.yaml
-```
-
-### 3. Create secrets
-
-Never commit real values — create the secret directly on the cluster:
-
-```bash
-kubectl create secret generic transitwatch-secrets \
-  --from-literal=DATABASE_URL='postgresql://...' \
-  --from-literal=SUPABASE_URL='https://xxxx.supabase.co' \
-  --from-literal=SUPABASE_JWT_SECRET='...' \
-  -n transitwatch
-```
-
-Get the values from a teammate or the shared credentials store.
-
-### 4. Apply all manifests
-
-```bash
-kubectl apply -f k8s/
-```
-
-### 5. Verify everything is running
-
-```bash
-kubectl get pods,svc,hpa -n transitwatch
-# All pods should reach Running status within ~30 seconds
-```
-
-### Accessing the app
-
-| Service | URL |
+| Услуга | URL |
 |---|---|
-| Frontend | http://localhost |
-| API | http://localhost/api |
-| Health check | http://localhost/api/health |
+| Web | http://localhost:8080 |
+| API | http://localhost:3000 |
+| API Health | http://localhost:3000/health |
+| Swagger документация | http://localhost:3000/api/docs |
 
-### Teardown
+### Вариант Б: Локална разработка без Docker
 
 ```bash
-k3d cluster delete transitwatch
+# 1. Инсталирай зависимости (от root на монорепото)
+npm install
+
+# 2. Приложи миграции
+cd apps/api
+npx prisma migrate dev
+cd ../..
+
+# 3. Стартирай API (Терминал 1)
+npm run dev:api     # http://localhost:3000
+
+# 4. Стартирай Web (Терминал 2)
+npm run dev:web     # http://localhost:5173
+```
+
+### Стъпка 3: Импорт на GTFS данни (задължително)
+
+```bash
+curl -X POST http://localhost:3000/transit/import
+```
+
+Импортира линии, спирки и маршрути от официалния Sofia Traffic GTFS feed. Изпълнява се автоматично всеки ден в 03:00 UTC.
+
+### Стартиране на тестовете
+
+```bash
+# Backend unit тестове
+cd apps/api && npm run test
+
+# Backend coverage
+cd apps/api && npm run test:cov
+
+# Backend e2e тестове
+cd apps/api && npm run test:e2e
+
+# Frontend unit тестове
+cd apps/web && npm run test
 ```
 
 ---
 
-## Tech Stack
+## Използвани технологии и версии
 
-| Layer | Tech |
-|---|---|
-| **Frontend** | React + TypeScript, Leaflet maps |
-| **Backend** | NestJS + TypeScript |
-| **Database** | Supabase (PostgreSQL) |
-| **Auth** | Supabase Email Auth |
-| **Infrastructure** | Docker, k3s (Kubernetes), GitHub Actions CI/CD |
-
-## System Architecture
-
-The app follows a **layered architecture** with clear separation of concerns:
-
-```
-User (Browser)
-    ↓ HTTPS
-    ├→ Traefik Ingress
-    ├→ React App (Nginx pod, 2 replicas)
-         ↓ REST API
-    ├→ NestJS API (3 replicas, HPA)
-         ↓ Database / ORM
-    └→ Supabase PostgreSQL
-```
-
-![Infrastructure Diagram](docs/infrastructure-diagram.png)
-
-**Key layers:**
-- **Frontend** — React + TypeScript, Leaflet interactive map
-- **Backend** — NestJS REST API with service/repository pattern
-- **Database** — PostgreSQL (Supabase) with Prisma ORM
-- **Observability** — Prometheus metrics, GitHub Actions CI/CD
-
-## Domain Model (UML)
-
-The core entities and their relationships:
-
-![UML Class Diagram](docs/transitwatch-uml-1.jpg)
-
-**Key classes:**
-- **User** — email authentication (Supabase), credibility score, followed lines
-- **Report** — linked to user, line, stop; has type, description, expiry time
-- **Line** — bus/tram/metro line with stops
-- **Stop** — geographic location (lat/lng) on a line
-- **ReportType** — category (vehicle, traffic, inspectors, safety, other)
-- **BaseEntity** — abstract base (id, createdAt, updatedAt)
-
-## Key Concepts
-
-### Report Categories & Auto-Expiry
-| Type | Examples | Expires |
+| Слой | Технология | Версия |
 |---|---|---|
-| **Vehicle** | Broken AC, door, loud noise | 60 min |
-| **Traffic** | Delay >10min, overcrowding | 30 min |
-| **Inspectors** | Ticket check at stop X | 20 min |
-| **Safety/Comfort** | Aggressive passenger, dark lighting | 45 min |
-| **Other** | Free seats, route change | 30 min |
-
-### Credibility & Verification
-- **Credibility Score** — Users earn points from verified reports (shown first in feeds)
-- **Verification** — 2+ confirmations → marked as Verified
-- **Auto-hide** — 2+ disputes → automatically hidden & sent to moderation queue
-- **No anonymous reports** — account required (reduces spam)
+| Frontend | React | 19.2.4 |
+| Frontend | TypeScript (web) | ~5.9.3 |
+| Frontend | Vite | 8.0.0 |
+| Frontend | Leaflet / React-Leaflet | 1.9.4 / 5.0.0 |
+| Backend | NestJS | 11.x |
+| Backend | TypeScript (api) | ^5.7.3 |
+| ORM | Prisma / @prisma/client | 7.6.0 / 7.5.0 |
+| Database | PostgreSQL (Supabase) | managed |
+| Auth | Supabase Auth / supabase-js | 2.99.2 |
+| Testing | Jest / Vitest | 30.0.0 / 3.2.4 |
+| Containerization | Docker / Docker Compose | — |
+| Orchestration | Kubernetes (k3s) | — |
+| GitOps | ArgoCD | — |
+| Observability | Prometheus + Alertmanager | — |
+| CI/CD | GitHub Actions | — |
 
 ---
 
-**Team:** Zlaten Vek (Златен Век)
-**School:** ТУЕС Sofia, 11. Grade
-**Subject:** ПБО (Programming & Software Development) 2025–2026
+## API Endpoints
+
+Интерактивна Swagger документация достъпна на: **http://localhost:3000/api/docs**
+
+### Auth
+
+| Метод | Път | Auth | Описание |
+|---|---|---|---|
+| GET | `/auth/me` | Bearer JWT | Вземи/създай потребителски профил |
+
+### Reports
+
+| Метод | Път | Auth | Описание |
+|---|---|---|---|
+| POST | `/reports` | Bearer JWT | Създай репорт |
+| GET | `/reports/active` | — | Всички активни репорти |
+| GET | `/reports/mine` | Bearer JWT | Репортите на потребителя |
+| GET | `/reports/:id` | — | Конкретен репорт |
+| GET | `/reports/line/:lineId` | — | Репорти за линия |
+| DELETE | `/reports/:id` | Bearer JWT | Изтрий репорт (само собственик) |
+
+### Votes
+
+| Метод | Път | Auth | Описание |
+|---|---|---|---|
+| POST | `/reports/:reportId/votes` | Bearer JWT | Гласувай (confirm / dispute) |
+| GET | `/reports/:reportId/votes` | Опционален | Брой гласове + глас на потребителя |
+
+### Lines
+
+| Метод | Път | Auth | Описание |
+|---|---|---|---|
+| GET | `/lines` | — | Всички линии |
+| GET | `/lines/:id` | — | Линия + спирки |
+| GET | `/lines/:id/reports` | — | Активни репорти за линия |
+
+### Transit (GTFS)
+
+| Метод | Път | Auth | Описание |
+|---|---|---|---|
+| GET | `/transit/stops` | — | Спирки в bbox (viewport) |
+| GET | `/transit/stops/:id` | — | Детайли за спирка |
+| GET | `/transit/stops/:id/arrivals` | — | Предстоящи пристигания |
+| GET | `/transit/lines` | — | Всички линии (cache 24h) |
+| GET | `/transit/lines/:id/shape` | — | Геометрия на маршрута |
+| GET | `/transit/vehicles` | — | Реални GPS позиции на МПС |
+| GET | `/transit/vehicles/:vehicleId/trip` | — | Маршрут на МПС |
+| GET | `/transit/trips/:tripId/timeline` | — | Спирки и ETA по рейс |
+| POST | `/transit/import` | — | Ръчен GTFS импорт |
+
+### Users / Health / Metrics
+
+| Метод | Път | Auth | Описание |
+|---|---|---|---|
+| GET | `/users/me/profile` | Bearer JWT | Профил + credibility score |
+| GET | `/health` | — | Health check |
+| GET | `/metrics` | — | Prometheus метрики |
+
+---
+
+## Структура на проекта
+
+```
+Zlaten-Vek-TransitWatch/
+├── apps/
+│   ├── api/                    # NestJS backend
+│   │   ├── src/
+│   │   │   ├── auth/           # JWT аутентикация (JWKS валидация)
+│   │   │   ├── report/         # Репорти + Strategy Pattern за изтичане
+│   │   │   ├── vote/           # Гласуване (confirm / dispute)
+│   │   │   ├── line/           # Линии и спирки
+│   │   │   ├── transit/        # GTFS статичен + real-time интеграция
+│   │   │   ├── user/           # Потребителски профили, credibility score
+│   │   │   ├── metrics/        # Prometheus метрики, HTTP interceptor
+│   │   │   └── prisma/         # Глобален Prisma database client
+│   │   └── prisma/
+│   │       ├── schema.prisma   # Схема на БД (7 таблици)
+│   │       └── migrations/     # История на миграциите
+│   │
+│   └── web/                    # React + Vite frontend
+│       └── src/
+│           ├── components/     # UI компоненти (map, panels, report form)
+│           ├── pages/          # Маршрутни страници (Map, Login, Register, Profile)
+│           ├── hooks/          # Custom React hooks (useActiveReports, useVehicles…)
+│           ├── contexts/       # AuthContext (Supabase сесия)
+│           └── lib/            # Axios API client, utils
+│
+├── packages/
+│   └── shared/                 # Споделени DTOs, enums и типове между API и Web
+│
+├── docs/                       # Диаграми, screenshots, документация
+├── k8s/                        # Kubernetes манифести (deployments, HPA, ingress)
+├── argocd/                     # ArgoCD GitOps конфигурация
+├── .github/workflows/          # CI/CD pipelines (lint → test → build → deploy)
+├── docker-compose.yml          # Локално стартиране на API + Web
+└── package.json                # Monorepo workspace scripts
+```
+
+---
+
+## Полезни линкове
+
+- [Подробна документация](docs/documentation.md)
+- [Интерактивна инфраструктурна диаграма](docs/diagrams/infrastructure-diagram.html)
+- [ER диаграма (HTML)](docs/diagrams/database-diagram.html)
+- [UML диаграма (HTML)](docs/diagrams/uml-class-diagram.html)
+
+---
+
+## Екип
+
+**Златен Век** — ТУЕС, 11. клас
