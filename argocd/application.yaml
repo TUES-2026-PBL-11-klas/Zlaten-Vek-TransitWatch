@@ -1,0 +1,42 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: transitwatch
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/tues-2026-pbl-11-klas/Zlaten-Vek-TransitWatch.git
+    targetRevision: main
+    path: k8s
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: transitwatch
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ApplyOutOfSyncOnly=true
+  ignoreDifferences:
+    - group: ""
+      kind: Secret
+      name: transitwatch-secrets
+      namespace: transitwatch
+      jsonPointers:
+        - /data
+    - group: ""
+      kind: Secret
+      name: ghcr-secret
+      namespace: transitwatch
+      jsonPointers:
+        - /data
+    - group: autoscaling
+      kind: HorizontalPodAutoscaler
+      namespace: transitwatch
+      jsonPointers:
+        - /status
+        - /spec/metrics

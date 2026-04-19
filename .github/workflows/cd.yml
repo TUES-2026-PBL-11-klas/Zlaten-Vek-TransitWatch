@@ -12,21 +12,25 @@ jobs:
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
 
     permissions:
-      contents: read
+      contents: write
       packages: write
 
     env:
-      API_IMAGE: ghcr.io/${{ github.repository_owner }}/transitwatch-api
-      WEB_IMAGE: ghcr.io/${{ github.repository_owner }}/transitwatch-web
+      IMAGE_TAG: ${{ github.event.workflow_run.head_sha }}
 
     steps:
     - uses: actions/checkout@v4
+      with:
+        ref: main
+        token: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Set lowercase image tags
+    - name: Set image variables
       run: |
         OWNER=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')
-        echo "API_IMAGE=ghcr.io/${OWNER}/transitwatch-api" >> $GITHUB_ENV
-        echo "WEB_IMAGE=ghcr.io/${OWNER}/transitwatch-web" >> $GITHUB_ENV
+        SHORT_SHA="${IMAGE_TAG::7}"
+        echo "API_IMAGE=ghcr.io/${OWNER}/transitwatch-api:${SHORT_SHA}" >> $GITHUB_ENV
+        echo "WEB_IMAGE=ghcr.io/${OWNER}/transitwatch-web:${SHORT_SHA}" >> $GITHUB_ENV
+        echo "SHORT_SHA=${SHORT_SHA}" >> $GITHUB_ENV
 
     - name: Log in to GHCR
       uses: docker/login-action@v3
@@ -43,7 +47,7 @@ jobs:
         context: .
         file: apps/api/Dockerfile
         push: true
-        tags: ${{ env.API_IMAGE }}:latest
+        tags: ${{ env.API_IMAGE }}
 
     - name: Build and push Web image
       uses: docker/build-push-action@v6
@@ -51,33 +55,25 @@ jobs:
         context: .
         file: apps/web/Dockerfile
         push: true
-        tags: ${{ env.WEB_IMAGE }}:latest
+        tags: ${{ env.WEB_IMAGE }}
         build-args: |
           VITE_API_URL=${{ vars.VITE_API_URL }}
           VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY=${{ secrets.VITE_SUPABASE_ANON_KEY }}
 
-    - uses: azure/setup-kubectl@v4
-
-    - name: Create GHCR pull secret
+    - name: Update image tags in manifests
       run: |
-        kubectl create secret docker-registry ghcr-secret \
-          --docker-server=ghcr.io \
-          --docker-username=${{ github.actor }} \
-          --docker-password=${{ secrets.GITHUB_TOKEN }} \
-          -n transitwatch \
-          --dry-run=client -o yaml | kubectl apply -f -
+        OWNER=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')
+        sed -i "s|image: ghcr.io/${OWNER}/transitwatch-api:.*|image: ${{ env.API_IMAGE }}|" k8s/api-deployment.yaml
+        sed -i "s|image: ghcr.io/${OWNER}/transitwatch-web:.*|image: ${{ env.WEB_IMAGE }}|" k8s/web-deployment.yaml
 
-    - name: Deploy
+    - name: Commit updated manifests
       run: |
-        kubectl apply --validate=false -f k8s/
-        kubectl set image deployment/api api=${{ env.API_IMAGE }}:latest -n transitwatch
-        kubectl set image deployment/web web=${{ env.WEB_IMAGE }}:latest -n transitwatch
-        kubectl rollout status deployment/api -n transitwatch --timeout=120s
-        kubectl rollout status deployment/web -n transitwatch --timeout=120s
-        kubectl rollout status deployment/prometheus -n transitwatch --timeout=120s
-        kubectl rollout status deployment/alertmanager -n transitwatch --timeout=120s
-        kubectl rollout status deployment/alertmanager-discord -n transitwatch --timeout=120s
+        git config user.name  "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git add k8s/api-deployment.yaml k8s/web-deployment.yaml
+        git diff --cached --quiet || git commit -m "ci: update images to ${{ env.SHORT_SHA }} [skip ci]"
+        git push origin main
 
     - name: Notify Discord (success)
       if: success()
@@ -94,15 +90,15 @@ jobs:
           --data-binary @- << EOF
         {
           "embeds": [{
-            "title": "Deployed to Production — ${REPO}",
+            "title": "Images built — ArgoCD syncing ${REPO}",
             "url": "${RUN_URL}",
-            "description": "API and Web images are live on the k3s cluster.",
+            "description": "New images pushed to GHCR. ArgoCD will roll out the update automatically.",
             "color": 5763719,
             "fields": [
               {"name": "Commit",       "value": "[\`${SHORT_SHA}\`](${GITHUB_SERVER_URL}/${REPO}/commit/${SHA})", "inline": true},
               {"name": "Deployed by",  "value": "${ACTOR}",                                                       "inline": true},
-              {"name": "API image",    "value": "\`${{ env.API_IMAGE }}:latest\`",                                "inline": false},
-              {"name": "Web image",    "value": "\`${{ env.WEB_IMAGE }}:latest\`",                                "inline": false}
+              {"name": "API image",    "value": "\`${{ env.API_IMAGE }}\`",                                       "inline": false},
+              {"name": "Web image",    "value": "\`${{ env.WEB_IMAGE }}\`",                                       "inline": false}
             ],
             "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
             "footer": {"text": "TransitWatch CD"}

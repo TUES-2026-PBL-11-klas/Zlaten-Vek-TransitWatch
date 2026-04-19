@@ -1,12 +1,11 @@
 apiVersion: v1
-kind: Secret
+kind: ConfigMap
 metadata:
   name: alertmanager-config
   namespace: transitwatch
   labels:
     app: alertmanager
-type: Opaque
-stringData:
+data:
   alertmanager.yml: |
     global:
       resolve_timeout: 5m

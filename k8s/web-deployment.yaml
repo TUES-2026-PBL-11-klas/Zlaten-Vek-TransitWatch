@@ -4,7 +4,6 @@ metadata:
   name: web
   namespace: transitwatch
 spec:
-  replicas: 3
   selector:
     matchLabels:
       app: web
@@ -14,9 +13,9 @@ spec:
         app: web
     spec:
       imagePullSecrets:
-        - name: ghcr-secret
+      - name: ghcr-secret
       containers:
-        - name: web
-          image: ghcr.io/tues-2026-pbl-11-klas/transitwatch-web:latest
-          ports:
-            - containerPort: 80
+      - name: web
+        image: ghcr.io/tues-2026-pbl-11-klas/transitwatch-web:0000000
+        ports:
+        - containerPort: 80

@@ -9,6 +9,13 @@ import {
   NotFoundException,
   Inject,
 } from '@nestjs/common';
+import {
+  ApiOperation,
+  ApiParam,
+  ApiQuery,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { Public } from '../auth/decorators/public.decorator';
 import {
   ITransitRepository,
@@ -18,6 +25,7 @@ import { GtfsStaticService } from './services/gtfs-static.service';
 import { GtfsRealtimeService } from './services/gtfs-realtime.service';
 import { StopArrivalService } from './services/stop-arrival.service';
 
+@ApiTags('transit')
 @Controller('transit')
 export class TransitController {
   constructor(
@@ -30,6 +38,21 @@ export class TransitController {
 
   @Public()
   @Get('stops')
+  @ApiOperation({ summary: 'Get transit stops within a bounding box' })
+  @ApiQuery({
+    name: 'bbox',
+    description: 'Bounding box as minLat,minLng,maxLat,maxLng',
+    example: '42.65,23.28,42.75,23.42',
+    required: true,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'List of stops within the bbox that have scheduled trips',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Missing or malformed bbox parameter',
+  })
   async getStopsByBbox(@Query('bbox') bbox: string) {
     if (!bbox) {
       throw new BadRequestException(
@@ -64,6 +87,10 @@ export class TransitController {
 
   @Public()
   @Get('stops/:id')
+  @ApiOperation({ summary: 'Get a single stop by ID' })
+  @ApiParam({ name: 'id', description: 'Stop UUID' })
+  @ApiResponse({ status: 200, description: 'Stop details' })
+  @ApiResponse({ status: 404, description: 'Stop not found' })
   async getStopDetail(@Param('id') id: string) {
     const stop = await this.transitRepository.findStopById(id);
     if (!stop) {
@@ -75,6 +102,8 @@ export class TransitController {
   @Public()
   @Get('lines')
   @Header('Cache-Control', 'public, max-age=86400')
+  @ApiOperation({ summary: 'Get all transit lines (cached 24 h)' })
+  @ApiResponse({ status: 200, description: 'Full list of transit lines' })
   async getAllLines() {
     return this.transitRepository.findAllLines();
   }
@@ -82,6 +111,14 @@ export class TransitController {
   @Public()
   @Get('lines/:id/shape')
   @Header('Cache-Control', 'public, max-age=86400')
+  @ApiOperation({
+    summary: 'Get the polyline shape for a transit line (cached 24 h)',
+  })
+  @ApiParam({ name: 'id', description: 'Transit line UUID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Shape with coordinate array (empty array if no shape found)',
+  })
   async getLineShape(@Param('id') id: string) {
     const shape = await this.transitRepository.findShapeByLineId(id);
     if (!shape) {
@@ -93,6 +130,27 @@ export class TransitController {
   @Public()
   @Get('vehicles')
   @Header('Cache-Control', 'no-cache')
+  @ApiOperation({ summary: 'Get real-time vehicle positions' })
+  @ApiQuery({
+    name: 'since',
+    description:
+      'Unix timestamp — only return vehicles updated after this time',
+    required: false,
+    example: '1700000000',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Vehicle positions with timestamp and count',
+    schema: {
+      example: {
+        timestamp: 1700000000,
+        count: 42,
+        vehicles: [
+          { vehicleId: 'VH-1042', routeGtfsId: '6', lat: 42.7, lng: 23.32 },
+        ],
+      },
+    },
+  })
   getVehicles(@Query('since') since?: string) {
     const sinceTs = since ? parseInt(since, 10) : undefined;
     const allVehicles = this.gtfsRealtimeService.getVehicles(
@@ -115,6 +173,16 @@ export class TransitController {
   @Public()
   @Get('vehicles/:vehicleId/trip')
   @Header('Cache-Control', 'no-cache')
+  @ApiOperation({ summary: 'Get the current trip timeline for a vehicle' })
+  @ApiParam({ name: 'vehicleId', description: 'Vehicle identifier' })
+  @ApiResponse({
+    status: 200,
+    description: 'Trip timeline with stop sequence and arrival times',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Vehicle not found or trip unavailable',
+  })
   async getVehicleTripDetails(@Param('vehicleId') vehicleId: string) {
     const timeline =
       await this.stopArrivalService.getVehicleTripTimeline(vehicleId);
@@ -129,6 +197,20 @@ export class TransitController {
   @Public()
   @Get('stops/:id/arrivals')
   @Header('Cache-Control', 'no-cache')
+  @ApiOperation({ summary: 'Get upcoming vehicle arrivals at a stop' })
+  @ApiParam({ name: 'id', description: 'Stop UUID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Upcoming arrivals for the stop',
+    schema: {
+      example: {
+        stopId: 'uuid',
+        stopName: 'Орлов мост',
+        arrivals: [{ vehicleId: 'VH-1042', routeName: '6', etaSeconds: 120 }],
+      },
+    },
+  })
+  @ApiResponse({ status: 404, description: 'Stop not found' })
   async getStopArrivals(@Param('id') id: string) {
     const stop = await this.transitRepository.findStopById(id);
     if (!stop) {
@@ -147,6 +229,15 @@ export class TransitController {
   @Public()
   @Get('trips/:tripId/timeline')
   @Header('Cache-Control', 'no-cache')
+  @ApiOperation({ summary: 'Get the stop timeline for a GTFS trip' })
+  @ApiParam({ name: 'tripId', description: 'GTFS trip ID' })
+  @ApiQuery({
+    name: 'route',
+    description: 'GTFS route ID to disambiguate trips',
+    required: false,
+  })
+  @ApiResponse({ status: 200, description: 'Trip timeline with stop sequence' })
+  @ApiResponse({ status: 404, description: 'Trip not found' })
   async getTripTimeline(
     @Param('tripId') tripId: string,
     @Query('route') routeGtfsId?: string,
@@ -163,6 +254,11 @@ export class TransitController {
 
   @Public()
   @Post('import')
+  @ApiOperation({ summary: 'Trigger a manual GTFS static data import' })
+  @ApiResponse({
+    status: 201,
+    description: 'Import completed with result summary',
+  })
   async triggerImport() {
     const result = await this.gtfsStaticService.importStaticData();
     return {

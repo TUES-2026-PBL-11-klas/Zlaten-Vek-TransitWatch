@@ -30,6 +30,9 @@ const mockUserRepo: jest.Mocked<IUserRepository> = {
   upsert: jest.fn(),
 };
 
+const mockReportsCounter = { inc: jest.fn() };
+const mockActiveGauge = { inc: jest.fn(), dec: jest.fn(), set: jest.fn() };
+
 describe('ReportService', () => {
   let service: ReportService;
 
@@ -43,11 +46,11 @@ describe('ReportService', () => {
         { provide: USER_REPOSITORY, useValue: mockUserRepo },
         {
           provide: 'PROM_METRIC_REPORTS_CREATED_TOTAL',
-          useValue: { inc: jest.fn() },
+          useValue: mockReportsCounter,
         },
         {
           provide: 'PROM_METRIC_ACTIVE_REPORTS_GAUGE',
-          useValue: { inc: jest.fn(), dec: jest.fn(), set: jest.fn() },
+          useValue: mockActiveGauge,
         },
       ],
     }).compile();
@@ -142,6 +145,81 @@ describe('ReportService', () => {
         }),
       );
     });
+
+    it('adds author credibilityScore to the initial score of 5', async () => {
+      mockUserRepo.findById.mockResolvedValue({
+        id: userId,
+        email: 'u@example.com',
+        credibilityScore: 10,
+        createdAt: new Date(),
+      });
+      mockRepo.save.mockResolvedValue(fakeReport);
+
+      await service.createReport(userId, {
+        lineId: 'line-1',
+        category: ReportCategory.OTHER,
+      });
+
+      expect(mockRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ credibilityScore: 15 }),
+      );
+    });
+
+    it('defaults to credibilityScore of 5 when author is not found', async () => {
+      mockUserRepo.findById.mockResolvedValue(null);
+      mockRepo.save.mockResolvedValue(fakeReport);
+
+      await service.createReport(userId, {
+        lineId: 'line-1',
+        category: ReportCategory.OTHER,
+      });
+
+      expect(mockRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ credibilityScore: 5 }),
+      );
+    });
+
+    it('passes optional vehicleId and photoUrl to the repository', async () => {
+      mockRepo.save.mockResolvedValue(fakeReport);
+
+      await service.createReport(userId, {
+        lineId: 'line-1',
+        category: ReportCategory.VEHICLE_ISSUE,
+        vehicleId: 'VH-1042',
+        photoUrl: 'https://storage.example.com/photo.jpg',
+      });
+
+      expect(mockRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          vehicleId: 'VH-1042',
+          photoUrl: 'https://storage.example.com/photo.jpg',
+        }),
+      );
+    });
+
+    it('increments the reports_created_total counter with the category', async () => {
+      mockRepo.save.mockResolvedValue(fakeReport);
+
+      await service.createReport(userId, {
+        lineId: 'line-1',
+        category: ReportCategory.TRAFFIC,
+      });
+
+      expect(mockReportsCounter.inc).toHaveBeenCalledWith({
+        category: ReportCategory.TRAFFIC,
+      });
+    });
+
+    it('increments the active_reports_gauge after creating a report', async () => {
+      mockRepo.save.mockResolvedValue(fakeReport);
+
+      await service.createReport(userId, {
+        lineId: 'line-1',
+        category: ReportCategory.SAFETY,
+      });
+
+      expect(mockActiveGauge.inc).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe('getActiveReports', () => {
@@ -185,6 +263,26 @@ describe('ReportService', () => {
       const result = await service.getReportById('nonexistent');
 
       expect(result).toBeNull();
+    });
+  });
+
+  describe('getReportsByUser', () => {
+    it('returns reports for the given userId', async () => {
+      const reports = [{ id: 'r5', userId: 'user-uuid-1' }] as Report[];
+      mockRepo.findByUserId.mockResolvedValue(reports);
+
+      const result = await service.getReportsByUser('user-uuid-1');
+
+      expect(result).toBe(reports);
+      expect(mockRepo.findByUserId).toHaveBeenCalledWith('user-uuid-1');
+    });
+
+    it('returns empty array when the user has no reports', async () => {
+      mockRepo.findByUserId.mockResolvedValue([]);
+
+      const result = await service.getReportsByUser('user-uuid-1');
+
+      expect(result).toEqual([]);
     });
   });
 

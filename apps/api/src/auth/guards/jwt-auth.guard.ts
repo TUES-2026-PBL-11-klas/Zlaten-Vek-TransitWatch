@@ -26,6 +26,11 @@ export class JwtAuthGuard extends AuthGuard('supabase') {
       return true;
     }
 
+    // Allow Prometheus to scrape metrics without auth
+    if (req.url === '/metrics') {
+      return true;
+    }
+
     this.logger.debug(
       `Guard check: ${route} | hasAuth=${hasAuth} | public=${isPublic}`,
     );
