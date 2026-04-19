@@ -44,8 +44,14 @@ describe('ReportService', () => {
         ReportStrategyFactory,
         { provide: 'IReportRepository', useValue: mockRepo },
         { provide: USER_REPOSITORY, useValue: mockUserRepo },
-        { provide: 'PROM_METRIC_REPORTS_CREATED_TOTAL', useValue: mockReportsCounter },
-        { provide: 'PROM_METRIC_ACTIVE_REPORTS_GAUGE', useValue: mockActiveGauge },
+        {
+          provide: 'PROM_METRIC_REPORTS_CREATED_TOTAL',
+          useValue: mockReportsCounter,
+        },
+        {
+          provide: 'PROM_METRIC_ACTIVE_REPORTS_GAUGE',
+          useValue: mockActiveGauge,
+        },
       ],
     }).compile();
 
