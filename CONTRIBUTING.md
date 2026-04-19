@@ -224,6 +224,14 @@ Every PR runs the GitHub Actions pipeline:
 4. **Docker build** — verifies both images build cleanly
 5. **Push to GHCR** — on merge to `main` only
 
-Merge to `main` triggers `kubectl apply -f k8s/` to the local k3s cluster.
+### Deployment flow (GitOps via ArgoCD)
+
+When a PR merges to `main`:
+
+1. GitHub Actions builds new Docker images and pushes them to GHCR tagged with the commit SHA (e.g. `ghcr.io/org/transitwatch-api:a1b2c3d`).
+2. The workflow commits the updated image tags directly into `k8s/api-deployment.yaml` and `k8s/web-deployment.yaml` on `main`.
+3. **ArgoCD** watches the `k8s/` directory in the `main` branch. When it detects a change it automatically syncs — pulling the new images and rolling out updated pods on the k3s cluster.
+
+You do **not** need to run `kubectl` manually. The cluster self-updates within ArgoCD's sync interval (default: 3 minutes) or immediately if auto-sync is enabled.
 
 **Alerts:** Discord webhook fires on any pipeline failure. Prometheus alerts if the API error rate exceeds 5%.
