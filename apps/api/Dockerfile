@@ -10,4 +10,4 @@ RUN npx prisma generate --schema=apps/api/prisma/schema.prisma && \
     npm run build --workspace=apps/api
 
 EXPOSE 3000
-CMD ["node", "apps/api/dist/main"]
+CMD ["node", "apps/api/dist/apps/api/src/main"]
