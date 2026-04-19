@@ -6,6 +6,7 @@ import { TrafficStrategy } from './traffic.strategy';
 import { InspectorStrategy } from './inspector.strategy';
 import { SafetyStrategy } from './safety.strategy';
 import { OtherStrategy } from './other.strategy';
+import { UnknownReportCategoryException } from '../exceptions/unknown-report-category.exception';
 
 @Injectable()
 export class ReportStrategyFactory {
@@ -20,7 +21,7 @@ export class ReportStrategyFactory {
   getStrategy(category: ReportCategory): IReportStrategy {
     const strategy = this.strategies[category];
     if (!strategy) {
-      throw new Error(`No strategy found for report category: ${category}`);
+      throw new UnknownReportCategoryException(category);
     }
     return strategy;
   }
