@@ -23,6 +23,9 @@ spec:
         image: ghcr.io/tues-2026-pbl-11-klas/transitwatch-api:0000000
         ports:
         - containerPort: 3000
+        resources:
+          requests:
+            cpu: 100m
         env:
         - name: DATABASE_URL
           valueFrom:
