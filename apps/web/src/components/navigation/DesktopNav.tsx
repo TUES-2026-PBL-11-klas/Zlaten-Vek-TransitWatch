@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Map, Flag, UserCircle, LogIn, ChevronUp, ChevronDown } from 'lucide-react';
+import { Map, UserCircle, LogIn, ChevronUp, ChevronDown } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { cn } from '../../lib/utils';
 
@@ -43,10 +43,6 @@ export default function DesktopNav() {
             {!loading && (
               <>
                 <NavLink to="/" label="Map" icon={<Map size={16} />} active={pathname === '/'} />
-
-                {user && (
-                  <NavLink to="/" label="Report" icon={<Flag size={16} />} active={false} />
-                )}
 
                 {user ? (
                   <NavLink

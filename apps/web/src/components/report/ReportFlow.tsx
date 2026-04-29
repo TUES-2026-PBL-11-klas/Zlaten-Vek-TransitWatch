@@ -1,10 +1,10 @@
 import { useState, useRef } from 'react';
 import {
-  AlertTriangle,
-  Clock,
-  ShieldCheck,
-  ShieldAlert,
-  MessageCircle,
+  Wrench,
+  TrafficCone,
+  Ticket,
+  Siren,
+  Info,
   Camera,
   X,
   ChevronLeft,
@@ -28,11 +28,11 @@ interface ReportFlowProps {
 type Step = 'vehicles' | 'category' | 'details';
 
 const CATEGORY_OPTIONS = [
-  { value: 'VEHICLE_ISSUE', label: 'Повреда', desc: 'Счупен климатик, врата...', icon: AlertTriangle, color: '#DC2626' },
-  { value: 'TRAFFIC', label: 'Трафик', desc: 'Закъснение, претъпкване', icon: Clock, color: '#F59E0B' },
-  { value: 'INSPECTORS', label: 'Контрольори', desc: 'Проверка на билети', icon: ShieldCheck, color: '#3B82F6' },
-  { value: 'SAFETY', label: 'Безопасност', desc: 'Агресивен пътник...', icon: ShieldAlert, color: '#8B5CF6' },
-  { value: 'OTHER', label: 'Друго', desc: 'Свободни места, промяна', icon: MessageCircle, color: '#6B7280' },
+  { value: 'VEHICLE_ISSUE', label: 'Повреда', desc: 'Счупен климатик, врата...', icon: Wrench, color: '#DC2626' },
+  { value: 'TRAFFIC', label: 'Трафик', desc: 'Закъснение, претъпкване', icon: TrafficCone, color: '#EA580C' },
+  { value: 'INSPECTORS', label: 'Контрольори', desc: 'Проверка на билети', icon: Ticket, color: '#1D4ED8' },
+  { value: 'SAFETY', label: 'Безопасност', desc: 'Агресивен пътник...', icon: Siren, color: '#BE123C' },
+  { value: 'OTHER', label: 'Друго', desc: 'Свободни места, промяна', icon: Info, color: '#6B7280' },
 ] as const;
 
 const TYPE_ICONS: Record<string, string> = {
@@ -347,15 +347,16 @@ function CategorySelectStep({ onSelect }: { onSelect: (category: string) => void
             }}
           >
             <div style={{
-              width: 36,
-              height: 36,
-              borderRadius: 10,
-              background: `${cat.color}15`,
+              width: 44,
+              height: 44,
+              borderRadius: 12,
+              background: `${cat.color}14`,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
+              marginBottom: 2,
             }}>
-              <Icon size={18} color={cat.color} strokeWidth={2.2} />
+              <Icon size={22} color={cat.color} strokeWidth={2} />
             </div>
             <div style={{ fontSize: 13, fontWeight: 600, color: '#111827' }}>{cat.label}</div>
             <div style={{ fontSize: 11, color: '#9CA3AF', textAlign: 'center', lineHeight: 1.3 }}>
